@@ -1,0 +1,22 @@
+<svg width="1080" height="570" viewBox="0 0 1080 570" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Concept illustration of a modern electric-blue luxury sedan">
+<defs>
+ <linearGradient id="paint" x1="166" y1="305" x2="852" y2="459" gradientUnits="userSpaceOnUse"><stop stop-color="#91DDE7"/><stop offset=".19" stop-color="#20566D"/><stop offset=".48" stop-color="#112C43"/><stop offset=".72" stop-color="#2E748E"/><stop offset="1" stop-color="#0F293B"/></linearGradient>
+ <linearGradient id="roof" x1="360" y1="221" x2="663" y2="374" gradientUnits="userSpaceOnUse"><stop stop-color="#81D8DB"/><stop offset=".6" stop-color="#183B50"/><stop offset="1" stop-color="#0B1A28"/></linearGradient>
+ <linearGradient id="glass" x1="422" y1="261" x2="691" y2="345" gradientUnits="userSpaceOnUse"><stop stop-color="#4B96A8"/><stop offset=".5" stop-color="#142D45"/><stop offset="1" stop-color="#071725"/></linearGradient>
+ <linearGradient id="ground" x1="540" y1="402" x2="540" y2="511" gradientUnits="userSpaceOnUse"><stop stop-color="#5BE6DA" stop-opacity=".32"/><stop offset="1" stop-color="#5BE6DA" stop-opacity="0"/></linearGradient>
+ <linearGradient id="light" x1="90" x2="1000" y1="0" y2="0" gradientUnits="userSpaceOnUse"><stop stop-color="#5BF0E5" stop-opacity="0"/><stop offset=".53" stop-color="#5BF0E5" stop-opacity=".8"/><stop offset="1" stop-color="#5BF0E5" stop-opacity="0"/></linearGradient>
+ <filter id="blur"><feGaussianBlur stdDeviation="22"/></filter><filter id="wheelGlow"><feGaussianBlur stdDeviation="3"/></filter>
+</defs>
+<ellipse cx="533" cy="466" rx="390" ry="34" fill="#16E8CF" opacity=".15" filter="url(#blur)"/>
+<path d="M0 475H1080" stroke="url(#light)" stroke-width="2"/><path d="M55 505H1025" stroke="url(#light)" stroke-opacity=".26"/>
+<path d="M164 396C191 381 212 365 238 359L312 341C356 301 398 267 454 246C490 231 605 233 651 251C701 269 752 309 793 337L868 350C904 355 926 379 929 413L933 433C924 455 900 466 879 469L832 469C813 428 788 399 739 396C690 393 656 422 645 465L417 469C409 425 378 396 328 396C279 396 248 425 239 469L209 465C172 457 145 438 145 414L164 396Z" fill="url(#paint)" stroke="#78B8C6" stroke-width="2"/>
+<path d="M328 339L414 271C453 246 502 247 538 247H629C673 252 719 282 773 338H328Z" fill="url(#roof)" stroke="#89BBC3" stroke-width="1.5"/>
+<path d="M406 332L459 274C468 264 483 262 495 261H537V335L406 332Z" fill="url(#glass)" stroke="#51B3BF" stroke-opacity=".5"/>
+<path d="M550 261H622C659 262 691 281 740 335H550V261Z" fill="url(#glass)" stroke="#5DBAC9" stroke-opacity=".48"/>
+<path d="M540 250L544 338" stroke="#68A4B3" stroke-width="3"/><path d="M318 349C480 359 666 357 865 354" stroke="#95C8CA" opacity=".57"/><path d="M306 381C515 391 740 389 903 375" stroke="#5BA5B3" opacity=".6"/><path d="M546 352L538 446" stroke="#173449" stroke-width="2"/>
+<path d="M576 358H613" stroke="#88D7DB" stroke-width="3" stroke-linecap="round"/><path d="M346 357H376" stroke="#88D7DB" stroke-width="3" stroke-linecap="round"/>
+<path d="M159 407L225 389L236 409L183 426H147Z" fill="#9DFBEE"/><path d="M166 413L224 397" stroke="#FEFFFF" stroke-width="5" stroke-linecap="round"/><path d="M853 381L921 396L932 415H870Z" fill="#F99383"/><path d="M867 388L918 401" stroke="#FFD8C9" stroke-width="5" stroke-linecap="round"/>
+<path d="M221 469H879" stroke="#66DCCC" opacity=".6"/><path d="M266 451C266 417 293 390 328 390C364 390 391 417 391 451C391 486 364 513 328 513C293 513 266 486 266 451Z" fill="#07111D" stroke="#1F4659" stroke-width="9"/><circle cx="328" cy="451" r="41" fill="#101F2E" stroke="#AEC9CC" stroke-width="9"/><circle cx="328" cy="451" r="27" stroke="#426A79" stroke-width="8"/><circle cx="328" cy="451" r="11" fill="#9ACBD0"/>
+<path d="M680 451C680 416 706 390 742 390C778 390 805 417 805 451C805 486 778 513 742 513C707 513 680 486 680 451Z" fill="#07111D" stroke="#1F4659" stroke-width="9"/><circle cx="742" cy="451" r="41" fill="#101F2E" stroke="#AEC9CC" stroke-width="9"/><circle cx="742" cy="451" r="27" stroke="#426A79" stroke-width="8"/><circle cx="742" cy="451" r="11" fill="#9ACBD0"/>
+<path d="M225 468H264M393 468H680M807 468H878" stroke="#9EE6D9" stroke-width="2" stroke-linecap="round"/>
+</svg>

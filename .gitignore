@@ -1,0 +1,33 @@
+# =========================================================
+# IntelliRide - Root Git Ignore
+# =========================================================
+
+# Environment / Secrets
+.env
+.env.*
+!.env.example
+
+# Operating System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Python cache (for AI/FastAPI services, if any)
+__pycache__/
+*.py[cod]
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Temporary files
+*.tmp
+*.temp
