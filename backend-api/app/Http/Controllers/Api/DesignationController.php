@@ -89,7 +89,7 @@ class DesignationController extends Controller
                     ->where('ID', $updateId)
                     ->update($data);
 
-                $message = 'Department updated successfully.';
+                $message = 'Designation updated successfully.';
                 $responseCode = 200;
             } else {
                 DB::table('designation_tb')->insert($data);
