@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DepartmentController;
+use App\Http\Controllers\Api\DesignationController;
 use App\Http\Controllers\Api\InputFiltersController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\StaffController;
@@ -32,7 +33,15 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::controller(DepartmentController::class)->group(function () {
-        Route::post('/save_department', 'save_department');
+        Route::post('/save_department', 'saveDepartment');
+        Route::post('/get_department', 'getDepartments');
+        Route::post('/fetch_department_data', 'fetchDepartmentData');
+    });
+
+    Route::controller(DesignationController::class)->group(function () {
+        Route::post('/save_designation', 'saveDesignation');
+        Route::post('/get_designation', 'getDesignation');
+        Route::post('/fetch_designation_data', 'fetchDesignationData');
     });
 
     Route::controller(InputFiltersController::class)->group(function () {
