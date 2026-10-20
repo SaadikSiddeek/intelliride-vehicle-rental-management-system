@@ -171,7 +171,7 @@ export default function Designation() {
         },
         {
           title: "Actions",
-          field: "id",
+          field: "ID",
           hozAlign: "center",
           vertAlign: "middle",
           width: 120,
@@ -186,7 +186,7 @@ export default function Designation() {
             `;
           },
           cellClick: function (e, cell) {
-            let id = cell.getRow().getData().id;
+            let id = cell.getRow().getData().ID;
             fetch_designation_data(id);
           },
         },
