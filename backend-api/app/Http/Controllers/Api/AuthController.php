@@ -25,7 +25,11 @@ class AuthController extends Controller
             'status' => true,
         ]);
 
-        $token = $user->createToken('main')->plainTextToken;
+        $token = $user->createToken(
+            'main',
+            ['*'],
+            now()->addMinutes(30)
+        )->plainTextToken;
 
         return response([
             'user' => $user,
@@ -46,7 +50,11 @@ class AuthController extends Controller
         /** @var User $user */
         $user = Auth::user();
 
-        $token = $user->createToken('main')->plainTextToken;
+        $token = $user->createToken(
+            'main',
+            ['*'],
+            now()->addMinutes(30)
+        )->plainTextToken;
 
         return response([
             'user' => $user,
@@ -62,5 +70,16 @@ class AuthController extends Controller
         $user->currentAccessToken()->delete();
 
         return response('', 204);
+    }
+
+    public function activity(Request $request)
+    {
+        $token = $request->user()->currentAccessToken();
+
+        $token->forceFill([
+            'expires_at' => now()->addMinutes(30),
+        ])->save();
+
+        return response()->noContent();
     }
 }

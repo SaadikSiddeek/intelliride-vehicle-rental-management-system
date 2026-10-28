@@ -48,6 +48,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/branch_filter', 'branchFilter');
     });
 
+    Route::post('/auth/activity', [AuthController::class, 'activity']);
     Route::post('/logout', [AuthController::class, 'logout']);
 });
 
