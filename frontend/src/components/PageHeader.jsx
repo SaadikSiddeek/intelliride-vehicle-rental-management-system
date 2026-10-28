@@ -36,7 +36,7 @@ export default function PageHeader({
         </div>
         {children}
       </div>
-      {sampleModules.has(pathname) && (
+      {/* {sampleModules.has(pathname) && (
         <div className="page-data-note">
           <Info size={13} />
           <span>
@@ -45,7 +45,7 @@ export default function PageHeader({
               : "Sample records · changes are not saved in this version."}
           </span>
         </div>
-      )}
+      )} */}
     </div>
   );
 }
