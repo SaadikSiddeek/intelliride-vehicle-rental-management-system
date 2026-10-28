@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
 import { useLocation, Link } from "react-router-dom";
-import { Menu, ChevronRight, LogOut, Search, X, Settings2, CircleHelp } from "lucide-react";
+import SessionTimer from "./SessionTimer";
+import {
+  Menu,
+  ChevronRight,
+  LogOut,
+  Search,
+  X,
+  Settings2,
+  CircleHelp,
+} from "lucide-react";
 import ProductTour from "./layout/ProductTour";
 import { navigationItems } from "./layout/navigation";
 import ThemeToggle from "./layout/ThemeToggle";
@@ -14,7 +23,9 @@ export default function Header({ user, onLogout, setMobileOpen }) {
   useEffect(() => {
     const searchShortcut = (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault(); setQuery(""); setSearchOpen(value => !value);
+        event.preventDefault();
+        setQuery("");
+        setSearchOpen((value) => !value);
       }
     };
     window.addEventListener("keydown", searchShortcut);
@@ -47,6 +58,7 @@ export default function Header({ user, onLogout, setMobileOpen }) {
         <span>{current}</span>
       </div>
       <div className="header-actions">
+        <SessionTimer />
         <Button
           variant="outline"
           className="nav-search-trigger"
@@ -58,8 +70,22 @@ export default function Header({ user, onLogout, setMobileOpen }) {
           <Search size={16} />
           <span>Find a page</span>
         </Button>
-        <button className="header-help" aria-label="Open guided workspace tour" title="Workspace tour" onClick={() => setTourOpen(true)}><CircleHelp size={18}/></button>
-        <Link to="/settings" title="Personalize workspace" className="header-settings-link" aria-label="Appearance settings"><Settings2 size={17}/></Link>
+        <button
+          className="header-help"
+          aria-label="Open guided workspace tour"
+          title="Workspace tour"
+          onClick={() => setTourOpen(true)}
+        >
+          <CircleHelp size={18} />
+        </button>
+        <Link
+          to="/settings"
+          title="Personalize workspace"
+          className="header-settings-link"
+          aria-label="Appearance settings"
+        >
+          <Settings2 size={17} />
+        </Link>
         <ThemeToggle />
         <div className="header-divider" />
         <details className="profile-menu">
@@ -73,7 +99,9 @@ export default function Header({ user, onLogout, setMobileOpen }) {
           <div className="profile-popover">
             <strong>{user?.name}</strong>
             <p>{user?.email}</p>
-            <Link to="/settings" className="profile-settings-link"><Settings2 size={16}/> Appearance & settings</Link>
+            <Link to="/settings" className="profile-settings-link">
+              <Settings2 size={16} /> Appearance & settings
+            </Link>
             <button onClick={onLogout}>
               <LogOut size={16} /> Sign out
             </button>
@@ -129,7 +157,7 @@ export default function Header({ user, onLogout, setMobileOpen }) {
           </Dialog.Popup>
         </Dialog.Portal>
       </Dialog.Root>
-      <ProductTour open={tourOpen} onOpenChange={setTourOpen}/>
+      <ProductTour open={tourOpen} onOpenChange={setTourOpen} />
     </header>
   );
 }
