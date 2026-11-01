@@ -1,208 +1,444 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
+import { Plus, TriangleAlert } from "lucide-react";
+import { TabulatorFull as Tabulator } from "tabulator-tables";
+
 import TableSearch from "@/components/TableSearch";
-import { Plus } from "lucide-react";
+import FieldError from "@/components/ErrorField";
 import { Input, NativeSelect } from "@/components/ui/input";
 import PageHeader from "@/components/PageHeader";
-import { useEffect, useRef, useState } from "react";
-
-import { TabulatorFull as Tabulator } from "tabulator-tables";
-import "tabulator-tables/dist/css/tabulator.min.css";
 import CustomDrawer from "@/components/Drawer";
+import CarLoader from "@/components/CarLoader";
+import axiosClient from "@/axios-client";
+
+import "tabulator-tables/dist/css/tabulator.min.css";
+
+const EMPTY_FORM = {
+  brand: "",
+  model_name: "",
+  year: "",
+  engine_capacity: "",
+  fuel_type: "",
+  transmission: "",
+  status: true,
+};
+
+function getErrorMessage(error, fallback) {
+  return error.response?.data?.message || error.message || fallback;
+}
 
 export default function VehicleModel() {
-  const {
-    register,
-    handleSubmit,
-    reset,
-    control,
-    formState: { errors },
-  } = useForm({
-    defaultValues: {
-      brand: "",
-      model_name: "",
-      year: "",
-      engine_capacity: "",
-      fuel_type: "",
-      transmission: "",
-      status: true,
-    },
-  });
-  const [demoSubmitted, setDemoSubmitted] = useState(false);
+  // ================= STATE =================
 
   const [openDrawer, setOpenDrawer] = useState(false);
+  const [updateId, setUpdateId] = useState("");
+  const [brands, setBrands] = useState([]);
+
+  const [tableLoading, setTableLoading] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const [pageError, setPageError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const tableRef = useRef(null);
   const table = useRef(null);
+  const requestBusy = useRef(false);
+  const mounted = useRef(false);
+  const listRequest = useRef(null);
+  const formRequest = useRef(null);
 
-  // Form Refs
+  const isEditing = updateId !== "";
+  const isBusy = saving || formLoading;
+  const maxYear = new Date().getFullYear() + 1;
+
+  // ================= REACT HOOK FORM =================
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    clearErrors,
+    setError,
+    formState: { errors },
+  } = useForm({
+    defaultValues: EMPTY_FORM,
+  });
 
   const status = useWatch({ control, name: "status" });
-
-  const reset_form = () => {
-    reset();
-    setDemoSubmitted(false);
-  };
-
-  const save_data = (form_data) => {
-    const payload = {
-      brand: form_data.brand,
-      model_name: form_data.model_name,
-      year: form_data.year,
-      engine_capacity: form_data.engine_capacity,
-      fuel_type: form_data.fuel_type,
-      transmission: form_data.transmission,
-      status: form_data.status,
-    };
-
-    console.log(payload);
-    setDemoSubmitted(true);
-  };
+  const selectedBrand = useWatch({ control, name: "brand" });
+  const selectedFuel = useWatch({ control, name: "fuel_type" });
+  const selectedTransmission = useWatch({
+    control,
+    name: "transmission",
+  });
 
   useEffect(() => {
-    table.current = new Tabulator(tableRef.current, {
+    mounted.current = true;
+
+    return () => {
+      mounted.current = false;
+      listRequest.current?.abort();
+      formRequest.current?.abort();
+    };
+  }, []);
+
+  // ================= LOAD TABLE AND BRANDS =================
+
+  const getVehicleModels = useCallback(async () => {
+    listRequest.current?.abort();
+
+    const controller = new AbortController();
+    listRequest.current = controller;
+
+    setTableLoading(true);
+    setPageError("");
+
+    try {
+      const { data } = await axiosClient.post(
+        "/get_vehicle_models",
+        {},
+        { signal: controller.signal },
+      );
+
+      if (controller.signal.aborted || !mounted.current) return;
+
+      if (
+        !data.status ||
+        !Array.isArray(data.data) ||
+        !Array.isArray(data.brands)
+      ) {
+        throw new Error(data.message || "Unable to load vehicle models.");
+      }
+
+      setBrands(data.brands);
+      await table.current?.setData(data.data);
+    } catch (error) {
+      if (controller.signal.aborted || !mounted.current) return;
+
+      setPageError(getErrorMessage(error, "Unable to load vehicle models."));
+    } finally {
+      if (mounted.current && listRequest.current === controller) {
+        setTableLoading(false);
+        listRequest.current = null;
+      }
+    }
+  }, []);
+
+  // ================= OPEN CREATE FORM =================
+
+  const openCreateDrawer = () => {
+    if (requestBusy.current) return;
+
+    reset({ ...EMPTY_FORM });
+    setUpdateId("");
+    setFormError("");
+    setSuccessMessage("");
+    setOpenDrawer(true);
+  };
+
+  // ================= FETCH FOR EDIT =================
+
+  const fetchVehicleModelData = useCallback(
+    async (id) => {
+      if (!id || requestBusy.current) return;
+
+      requestBusy.current = true;
+
+      const controller = new AbortController();
+      formRequest.current = controller;
+
+      reset({ ...EMPTY_FORM });
+      setUpdateId(id);
+      setFormError("");
+      setPageError("");
+      setSuccessMessage("");
+      setFormLoading(true);
+      setOpenDrawer(true);
+
+      try {
+        const { data } = await axiosClient.post(
+          "/fetch_vehicle_model_data",
+          { upd_id: id },
+          { signal: controller.signal },
+        );
+
+        if (controller.signal.aborted || !mounted.current) return;
+
+        if (!data.status || !data.data) {
+          throw new Error(data.message || "Unable to fetch vehicle model.");
+        }
+
+        const model = data.data;
+
+        setUpdateId(model.ID);
+
+        // Correct mapping for your actual database columns.
+        reset({
+          brand: String(model.brand_id ?? ""),
+          model_name: model.model_name ?? "",
+          year: String(model.manufacture_year ?? ""),
+          engine_capacity: String(model.engine_capacity ?? ""),
+          fuel_type: String(model.fuel_type_id ?? ""),
+          transmission: String(model.transmission_type_id ?? ""),
+          status: Number(model.status) === 1,
+        });
+      } catch (error) {
+        if (controller.signal.aborted || !mounted.current) return;
+
+        reset({ ...EMPTY_FORM });
+        setUpdateId("");
+        setOpenDrawer(false);
+
+        setPageError(getErrorMessage(error, "Unable to fetch vehicle model."));
+      } finally {
+        requestBusy.current = false;
+
+        if (formRequest.current === controller) {
+          formRequest.current = null;
+        }
+
+        if (mounted.current) {
+          setFormLoading(false);
+        }
+      }
+    },
+    [reset],
+  );
+
+  // ================= SAVE CREATE / UPDATE =================
+
+  const saveVehicleModel = async (values) => {
+    if (requestBusy.current) return;
+
+    requestBusy.current = true;
+
+    const controller = new AbortController();
+    formRequest.current = controller;
+
+    clearErrors();
+    setFormError("");
+    setSuccessMessage("");
+    setSaving(true);
+
+    const payload = {
+      brand: Number(values.brand),
+      model_name: values.model_name.trim(),
+      year: values.year === "" ? null : Number(values.year),
+      engine_capacity: values.engine_capacity.trim() || null,
+      fuel_type: Number(values.fuel_type),
+      transmission: Number(values.transmission),
+      status: values.status ? 1 : 0,
+    };
+
+    if (isEditing) {
+      payload.upd_id = updateId;
+    }
+
+    try {
+      const { data } = await axiosClient.post("/save_vehicle_model", payload, {
+        signal: controller.signal,
+      });
+
+      if (controller.signal.aborted || !mounted.current) return;
+
+      if (!data.status) {
+        throw new Error(data.message || "Unable to save vehicle model.");
+      }
+
+      reset({ ...EMPTY_FORM });
+      setUpdateId("");
+      setOpenDrawer(false);
+      setSuccessMessage(data.message || "Vehicle model saved successfully.");
+
+      await getVehicleModels();
+    } catch (error) {
+      if (controller.signal.aborted || !mounted.current) return;
+
+      if (error.response?.status === 422) {
+        const serverErrors = error.response.data.errors ?? {};
+        const generalMessages = [];
+
+        Object.entries(serverErrors).forEach(([field, messages]) => {
+          const message = Array.isArray(messages)
+            ? messages[0]
+            : String(messages);
+
+          if (Object.prototype.hasOwnProperty.call(EMPTY_FORM, field)) {
+            setError(field, {
+              type: "server",
+              message,
+            });
+          } else {
+            generalMessages.push(message);
+          }
+        });
+
+        if (generalMessages.length) {
+          setFormError(generalMessages.join(" "));
+        } else if (!Object.keys(serverErrors).length) {
+          setFormError("Please check the submitted values.");
+        }
+      } else {
+        setFormError(getErrorMessage(error, "Unable to save vehicle model."));
+      }
+    } finally {
+      requestBusy.current = false;
+
+      if (formRequest.current === controller) {
+        formRequest.current = null;
+      }
+
+      if (mounted.current) {
+        setSaving(false);
+      }
+    }
+  };
+
+  // ================= CLOSE DRAWER =================
+
+  const handleDrawerChange = (open) => {
+    if (requestBusy.current) return;
+
+    setOpenDrawer(open);
+
+    if (!open) {
+      reset({ ...EMPTY_FORM });
+      setUpdateId("");
+      setFormError("");
+    }
+  };
+
+  // ================= INITIALIZE TABLE =================
+
+  useEffect(() => {
+    const modelTable = new Tabulator(tableRef.current, {
+      index: "id",
       layout: "fitColumns",
       maxHeight: "550px",
-      placeholder:
-        '<div class="ir-table-empty"><strong>No Vehicle Models Found</strong><p>Add a record using the create button, or clear your search to see more results.</p></div>',
       movableColumns: true,
       columnHeaderVertAlign: "middle",
-
-      // Dummy Data
-      data: [
-        {
-          id: 1,
-          brand: "Toyota",
-          model_name: "Prius",
-          year: 2022,
-          engine_capacity: "1800cc",
-          fuel_type: "Hybrid",
-          transmission: "Automatic",
-          status: 1,
-        },
-        {
-          id: 2,
-          brand: "Honda",
-          model_name: "Vezel",
-          year: 2021,
-          engine_capacity: "1500cc",
-          fuel_type: "Hybrid",
-          transmission: "Automatic",
-          status: 1,
-        },
-        {
-          id: 3,
-          brand: "Suzuki",
-          model_name: "Wagon R",
-          year: 2020,
-          engine_capacity: "660cc",
-          fuel_type: "Petrol",
-          transmission: "Automatic",
-          status: 1,
-        },
-        {
-          id: 4,
-          brand: "BMW",
-          model_name: "320i",
-          year: 2023,
-          engine_capacity: "2000cc",
-          fuel_type: "Petrol",
-          transmission: "Automatic",
-          status: 0,
-        },
-        {
-          id: 5,
-          brand: "Nissan",
-          model_name: "X-Trail",
-          year: 2022,
-          engine_capacity: "2500cc",
-          fuel_type: "Petrol",
-          transmission: "Automatic",
-          status: 1,
-        },
-      ],
+      placeholder: "No vehicle models found.",
 
       columns: [
         {
           title: "Brand",
           field: "brand",
-          frozen: true,
-          width: 120,
-        },
-        {
-          title: "Model Name",
-          field: "model_name",
+          formatter: "plaintext",
           frozen: true,
           width: 140,
         },
         {
+          title: "Model Name",
+          field: "model_name",
+          formatter: "plaintext",
+          frozen: true,
+          minWidth: 160,
+          widthGrow: 2,
+        },
+        {
           title: "Year",
           field: "year",
-          width: 80,
+          formatter: "plaintext",
+          width: 90,
           hozAlign: "center",
         },
         {
           title: "Engine Capacity",
           field: "engine_capacity",
-          width: 130,
+          formatter: "plaintext",
+          width: 150,
         },
         {
           title: "Fuel Type",
           field: "fuel_type",
-          width: 100,
+          formatter: "plaintext",
+          width: 120,
         },
         {
           title: "Transmission",
           field: "transmission",
-          width: 120,
+          formatter: "plaintext",
+          width: 140,
         },
         {
           title: "Status",
           field: "status",
           hozAlign: "center",
-          width: 120,
-
-          formatter: function (cell) {
-            let value = cell.getValue();
-
-            if (value == 1) {
-              return `
-                <span class="inline-flex items-center rounded-full bg-[var(--success-soft)] px-3 py-1 text-xs font-medium text-[var(--success)]">
-                    Active
-                </span>
-            `;
-            }
-
-            return `
-            <span class="inline-flex items-center rounded-full bg-[var(--danger-soft)] px-3 py-1 text-xs font-medium text-destructive">
-                Deactive
-            </span>
-        `;
-          },
+          width: 110,
+          formatter: (cell) =>
+            Number(cell.getValue()) === 1
+              ? `<span class="rounded-full bg-[var(--success-soft)] px-3 py-1 text-xs font-medium text-[var(--success)]">Active</span>`
+              : `<span class="rounded-full bg-[var(--danger-soft)] px-3 py-1 text-xs font-medium text-destructive">Inactive</span>`,
         },
         {
           title: "Actions",
           field: "id",
           hozAlign: "center",
-          width: 110,
+          width: 100,
           headerSort: false,
 
-          formatter: function () {
-            return `
-                        <div class="flex items-center justify-center">
-                            <button aria-label="Edit record" title="Edit record" class="table-action-btn">
-                                <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="m16 3 5 5M9 15l-1 4 4-1L22 8a2.1 2.1 0 0 0-5-5Z"/></svg>
-                            </button>
-                        </div>
-                        `;
+          formatter: () => `
+            <button
+              type="button"
+              class="table-action-btn"
+              aria-label="Edit vehicle model"
+              title="Edit vehicle model"
+            >
+              <svg
+                aria-hidden="true"
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="m16 3 5 5M9 15l-1 4 4-1L22 8a2.1 2.1 0 0 0-5-5Z"/>
+              </svg>
+            </button>
+          `,
+
+          cellClick: (event, cell) => {
+            if (!event.target.closest("button")) return;
+
+            void fetchVehicleModelData(cell.getRow().getData().id);
           },
         },
       ],
     });
 
+    table.current = modelTable;
+    modelTable.on("tableBuilt", getVehicleModels);
+
     return () => {
-      table.current?.destroy();
+      listRequest.current?.abort();
+
+      modelTable.off("tableBuilt", getVehicleModels);
+      modelTable.destroy();
+
+      if (table.current === modelTable) {
+        table.current = null;
+      }
     };
-  }, []);
+  }, [fetchVehicleModelData, getVehicleModels]);
+
+  // ================= BUTTON TEXT =================
+
+  let submitText = isEditing ? "Update Model" : "Save Model";
+
+  if (formLoading) {
+    submitText = "Loading...";
+  } else if (saving) {
+    submitText = isEditing ? "Updating..." : "Saving...";
+  }
+
+  // ================= UI =================
 
   return (
     <>
@@ -217,13 +453,47 @@ export default function VehicleModel() {
 
       <div className="management-page">
         <div className="page-container">
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+          {pageError && (
+            <div
+              role="alert"
+              className="mb-5 flex items-start gap-2 rounded-lg border border-red-200 bg-[var(--danger-soft)] px-4 py-3"
+            >
+              <TriangleAlert
+                size={16}
+                aria-hidden="true"
+                className="mt-0.5 shrink-0 text-destructive"
+              />
+
+              <div>
+                <p className="text-sm text-destructive">{pageError}</p>
+
+                <button
+                  type="button"
+                  disabled={tableLoading}
+                  onClick={() => void getVehicleModels()}
+                  className="mt-2 text-sm font-semibold underline disabled:opacity-50"
+                >
+                  Retry loading models
+                </button>
+              </div>
+            </div>
+          )}
+
+          {successMessage && (
+            <div
+              role="status"
+              className="mb-5 rounded-lg border border-border bg-[var(--info-soft)] px-4 py-3 text-sm text-primary"
+            >
+              {successMessage}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
             <button
+              type="button"
               className="btn-primary management-add"
-              onClick={() => {
-                reset_form();
-                setOpenDrawer(true);
-              }}
+              disabled={isBusy || tableLoading}
+              onClick={openCreateDrawer}
             >
               <Plus size={16} aria-hidden="true" className="mr-2" />
               Add Vehicle Model
@@ -231,161 +501,318 @@ export default function VehicleModel() {
 
             <CustomDrawer
               open={openDrawer}
-              setOpen={setOpenDrawer}
-              title="Create Vehicle Model"
-              description="Add a new vehicle model"
-              submitText="Save Model"
-              onSubmit={handleSubmit(save_data)}
+              setOpen={handleDrawerChange}
+              saving={isBusy}
+              title={
+                isEditing ? "Update Vehicle Model" : "Create Vehicle Model"
+              }
+              description="Add or update vehicle model details."
+              submitText={submitText}
+              onSubmit={handleSubmit(saveVehicleModel)}
               size="max-w-3xl"
             >
-              <form onSubmit={handleSubmit(save_data)} noValidate>
-                <p className="form-hint">
-                  Sample workspace. You can explore and validate this form;
-                  saving records is not connected in this module.
+              {formError && (
+                <div role="alert" className="form-alert mb-5">
+                  {formError}
+                </div>
+              )}
+
+              {formLoading && (
+                <p role="status" className="mb-4 text-sm text-muted-foreground">
+                  Loading vehicle model details...
                 </p>
-                {demoSubmitted && (
-                  <p className="demo-submit-note" role="status">
-                    Form validated. This preview does not save a record.
-                  </p>
-                )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-sm font-semibold text-foreground mb-2">
-                      Brand
-                    </label>
-                    <NativeSelect
-                      aria-label="Brand"
-                      {...register("brand")}
-                      error={errors.brand?.message}
-                      className="custom-input-sm"
-                    >
-                      <option value="">Select Brand</option>
-                    </NativeSelect>
-                  </div>
+              )}
 
-                  <div>
-                    <label className="block text-sm font-semibold text-foreground mb-2">
-                      Model Name
-                    </label>
-                    <Input
-                      aria-label="Model Name"
-                      {...register("model_name", {
-                        required: "This field is required.",
-                      })}
-                      error={errors.model_name?.message}
-                      type="text"
-                      placeholder="Enter model name"
-                      className="custom-input-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-foreground mb-2">
-                      Year
-                    </label>
-                    <Input
-                      aria-label="Year"
-                      {...register("year")}
-                      error={errors.year?.message}
-                      type="number"
-                      placeholder="Enter manufacturing year"
-                      className="custom-input-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-foreground mb-2">
-                      Engine Capacity
-                    </label>
-                    <Input
-                      aria-label="Engine Capacity"
-                      {...register("engine_capacity")}
-                      error={errors.engine_capacity?.message}
-                      type="text"
-                      placeholder="Eg: 1500cc"
-                      className="custom-input-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-foreground mb-2">
-                      Fuel Type
-                    </label>
-                    <NativeSelect
-                      aria-label="Fuel Type"
-                      {...register("fuel_type")}
-                      error={errors.fuel_type?.message}
-                      className="custom-input-sm"
-                    >
-                      <option value="">Select Fuel Type</option>
-                      <option>Petrol</option>
-                      <option>Diesel</option>
-                      <option>Hybrid</option>
-                      <option>Electric</option>
-                    </NativeSelect>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-foreground mb-2">
-                      Transmission
-                    </label>
-                    <NativeSelect
-                      aria-label="Transmission"
-                      {...register("transmission")}
-                      error={errors.transmission?.message}
-                      className="custom-input-sm"
-                    >
-                      <option value="">Select Transmission</option>
-                      <option>Automatic</option>
-                      <option>Manual</option>
-                    </NativeSelect>
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-semibold text-foreground mb-3">
-                      Status
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <Input
-                          aria-label="Status"
-                          {...register("status")}
-                          error={errors.status?.message}
-                          type="checkbox"
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-secondary rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+              <form
+                noValidate
+                aria-busy={isBusy}
+                onSubmit={handleSubmit(saveVehicleModel)}
+              >
+                <fieldset
+                  disabled={isBusy}
+                  className="m-0 min-w-0 border-0 p-0"
+                >
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                    <div>
+                      <label
+                        htmlFor="model_brand"
+                        className="mb-2 block text-sm font-semibold"
+                      >
+                        Brand
                       </label>
-                      <span className="text-sm text-muted-foreground">
-                        {status ? "Active" : "Inactive"}
-                      </span>
+
+                      <NativeSelect
+                        id="model_brand"
+                        className="custom-input-sm"
+                        aria-invalid={!!errors.brand}
+                        {...register("brand", {
+                          required: "Please select a brand.",
+                        })}
+                      >
+                        <option value="">Select brand</option>
+
+                        {selectedBrand &&
+                          !brands.some(
+                            (brand) => String(brand.ID) === selectedBrand,
+                          ) && (
+                            <option value={selectedBrand}>
+                              Current brand (ID {selectedBrand})
+                            </option>
+                          )}
+
+                        {brands.map((brand) => (
+                          <option key={brand.ID} value={String(brand.ID)}>
+                            {brand.brand_name}
+                            {Number(brand.status) === 0 ? " (Inactive)" : ""}
+                          </option>
+                        ))}
+                      </NativeSelect>
+
+                      <FieldError errors={errors} name="brand" />
+
+                      {!brands.length && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          No brands loaded. Create a brand or retry loading the
+                          page.
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="model_name"
+                        className="mb-2 block text-sm font-semibold"
+                      >
+                        Model Name
+                      </label>
+
+                      <Input
+                        id="model_name"
+                        type="text"
+                        maxLength={100}
+                        placeholder="Enter model name"
+                        className="custom-input-sm"
+                        aria-invalid={!!errors.model_name}
+                        {...register("model_name", {
+                          required: "Model name is required.",
+                          validate: (value) =>
+                            value.trim().length > 0 ||
+                            "Model name cannot contain only spaces.",
+                          maxLength: {
+                            value: 100,
+                            message: "Maximum 100 characters.",
+                          },
+                        })}
+                      />
+
+                      <FieldError errors={errors} name="model_name" />
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="model_year"
+                        className="mb-2 block text-sm font-semibold"
+                      >
+                        Manufacturing Year
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                          Optional
+                        </span>
+                      </label>
+
+                      <Input
+                        id="model_year"
+                        type="number"
+                        min={1886}
+                        max={maxYear}
+                        step={1}
+                        placeholder="Enter manufacturing year"
+                        className="custom-input-sm"
+                        aria-invalid={!!errors.year}
+                        {...register("year", {
+                          validate: (value) =>
+                            value === "" ||
+                            (Number.isInteger(Number(value)) &&
+                              Number(value) >= 1886 &&
+                              Number(value) <= maxYear) ||
+                            `Enter a whole year between 1886 and ${maxYear}.`,
+                        })}
+                      />
+
+                      <FieldError errors={errors} name="year" />
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="model_engine_capacity"
+                        className="mb-2 block text-sm font-semibold"
+                      >
+                        Engine Capacity
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                          Optional
+                        </span>
+                      </label>
+
+                      <Input
+                        id="model_engine_capacity"
+                        type="text"
+                        maxLength={50}
+                        placeholder="Eg: 1500cc"
+                        className="custom-input-sm"
+                        aria-invalid={!!errors.engine_capacity}
+                        {...register("engine_capacity", {
+                          maxLength: {
+                            value: 50,
+                            message: "Maximum 50 characters.",
+                          },
+                        })}
+                      />
+
+                      <FieldError errors={errors} name="engine_capacity" />
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="model_fuel_type"
+                        className="mb-2 block text-sm font-semibold"
+                      >
+                        Fuel Type
+                      </label>
+
+                      <NativeSelect
+                        id="model_fuel_type"
+                        className="custom-input-sm"
+                        aria-invalid={!!errors.fuel_type}
+                        {...register("fuel_type", {
+                          required: "Please select a fuel type.",
+                        })}
+                      >
+                        <option value="">Select fuel type</option>
+
+                        {/* Temporary manual option as requested. */}
+                        <option value="1">Petrol</option>
+
+                        {/* Preserve other saved IDs during editing. */}
+                        {selectedFuel && selectedFuel !== "1" && (
+                          <option value={selectedFuel}>
+                            Current fuel type (ID {selectedFuel})
+                          </option>
+                        )}
+                      </NativeSelect>
+
+                      <FieldError errors={errors} name="fuel_type" />
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="model_transmission"
+                        className="mb-2 block text-sm font-semibold"
+                      >
+                        Transmission
+                      </label>
+
+                      <NativeSelect
+                        id="model_transmission"
+                        className="custom-input-sm"
+                        aria-invalid={!!errors.transmission}
+                        {...register("transmission", {
+                          required: "Please select a transmission type.",
+                        })}
+                      >
+                        <option value="">Select transmission</option>
+
+                        {/* Temporary manual option as requested. */}
+                        <option value="1">Manual</option>
+
+                        {/* Preserve other saved IDs during editing. */}
+                        {selectedTransmission &&
+                          selectedTransmission !== "1" && (
+                            <option value={selectedTransmission}>
+                              Current transmission (ID {selectedTransmission})
+                            </option>
+                          )}
+                      </NativeSelect>
+
+                      <FieldError errors={errors} name="transmission" />
+                    </div>
+
+                    <div className="rounded-xl border border-border bg-secondary/20 p-4 sm:col-span-2">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <label
+                            htmlFor="model_status"
+                            className="block text-sm font-semibold"
+                          >
+                            Active Status
+                          </label>
+
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {status
+                              ? "This model is marked as active."
+                              : "This model is marked as inactive."}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm text-muted-foreground">
+                            {status ? "Active" : "Inactive"}
+                          </span>
+
+                          <label className="relative inline-flex cursor-pointer items-center">
+                            <input
+                              id="model_status"
+                              type="checkbox"
+                              className="peer sr-only"
+                              {...register("status")}
+                            />
+
+                            <span
+                              aria-hidden="true"
+                              className="h-6 w-11 rounded-full bg-secondary transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-disabled:opacity-50"
+                            />
+
+                            <span
+                              aria-hidden="true"
+                              className="absolute left-1 top-1 h-4 w-4 rounded-full bg-card shadow-sm transition-transform peer-checked:translate-x-5"
+                            />
+                          </label>
+                        </div>
+                      </div>
+
+                      <FieldError errors={errors} name="status" />
                     </div>
                   </div>
-                </div>
+                </fieldset>
               </form>
             </CustomDrawer>
 
             <div className="xl:col-span-12">
-              <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
-                <div className="flex items-center justify-between px-6 py-5 border-b">
+              <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+                <div className="flex items-center justify-between gap-4 border-b px-6 py-5">
                   <div>
-                    <h2 className="text-base font-semibold text-foreground">
+                    <h2 className="text-base font-semibold">
                       Vehicle Model List
                     </h2>
-                    <p className="text-sm text-muted-foreground mt-1">
+
+                    <p className="mt-1 text-sm text-muted-foreground">
                       Manage available vehicle models.
                     </p>
                   </div>
-                  <span className="px-3 py-1 rounded-full bg-[var(--info-soft)] text-primary text-sm font-medium">
+
+                  <span className="rounded-full bg-[var(--info-soft)] px-3 py-1 text-sm font-medium text-primary">
                     Models
                   </span>
                 </div>
 
-                <div className="p-6">
+                <div
+                  id="vehicle-model-tb"
+                  className="relative p-6"
+                  aria-busy={tableLoading}
+                >
                   <TableSearch table={table} />
+
                   <div
                     ref={tableRef}
-                    className="rounded-xl border border-border overflow-hidden"
+                    className="overflow-hidden rounded-xl border border-border"
                   />
                 </div>
               </div>
@@ -393,6 +820,12 @@ export default function VehicleModel() {
           </div>
         </div>
       </div>
+
+      <CarLoader
+        targetId="vehicle-model-tb"
+        show={tableLoading}
+        text="Loading Vehicle Models"
+      />
     </>
   );
 }

@@ -1,259 +1,640 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
+import { Plus, TriangleAlert } from "lucide-react";
+import { TabulatorFull as Tabulator } from "tabulator-tables";
+
 import TableSearch from "@/components/TableSearch";
-import { Plus } from "lucide-react";
+import FieldError from "@/components/ErrorField";
 import { Input, Textarea } from "@/components/ui/input";
 import PageHeader from "@/components/PageHeader";
-import { useEffect, useRef, useState } from "react";
-
-import { TabulatorFull as Tabulator } from "tabulator-tables";
-import "tabulator-tables/dist/css/tabulator.min.css";
 import CustomDrawer from "@/components/Drawer";
+import CarLoader from "@/components/CarLoader";
+import axiosClient from "@/axios-client";
+
+import "tabulator-tables/dist/css/tabulator.min.css";
+
+const EMPTY_FORM = {
+  fuel_type_name: "",
+  description: "",
+  status: true,
+};
+
+function getErrorMessage(error, fallback) {
+  return error.response?.data?.message || error.message || fallback;
+}
 
 export default function FuelType() {
+  // ================= STATE =================
 
-    const { register, handleSubmit, reset, control, formState: { errors } } = useForm({ defaultValues: {"fuel_type_name": "", "description": "", "status": true} });
-    const [demoSubmitted, setDemoSubmitted] = useState(false);
+  const [openDrawer, setOpenDrawer] = useState(false);
+  const [updateId, setUpdateId] = useState("");
 
-    const [openDrawer, setOpenDrawer] = useState(false);
+  const [tableLoading, setTableLoading] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-    const tableRef = useRef(null);
-    const table = useRef(null);
+  const [pageError, setPageError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-    // Form Refs
+  const tableRef = useRef(null);
+  const table = useRef(null);
+  const requestBusy = useRef(false);
+  const mounted = useRef(false);
 
-    const status = useWatch({ control, name: "status" });
+  const listRequest = useRef(null);
+  const formRequest = useRef(null);
 
-    const reset_form = () => {
-        reset();
-        setDemoSubmitted(false);
+  const isEditing = updateId !== "";
+  const isBusy = saving || formLoading;
+
+  // ================= REACT HOOK FORM =================
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    clearErrors,
+    setError,
+    formState: { errors },
+  } = useForm({
+    defaultValues: EMPTY_FORM,
+  });
+
+  const status = useWatch({
+    control,
+    name: "status",
+  });
+
+  useEffect(() => {
+    mounted.current = true;
+
+    return () => {
+      mounted.current = false;
+      listRequest.current?.abort();
+      formRequest.current?.abort();
+    };
+  }, []);
+
+  // ================= LOAD TABLE =================
+
+  const getFuelTypes = useCallback(async () => {
+    listRequest.current?.abort();
+
+    const controller = new AbortController();
+    listRequest.current = controller;
+
+    setTableLoading(true);
+    setPageError("");
+
+    try {
+      const { data } = await axiosClient.post(
+        "/get_fuel_types",
+        {},
+        { signal: controller.signal },
+      );
+
+      if (controller.signal.aborted || !mounted.current) return;
+
+      if (!data.status || !Array.isArray(data.data)) {
+        throw new Error(data.message || "Unable to load fuel types.");
+      }
+
+      await table.current?.setData(data.data);
+    } catch (error) {
+      if (controller.signal.aborted || !mounted.current) return;
+
+      setPageError(getErrorMessage(error, "Unable to load fuel types."));
+    } finally {
+      if (mounted.current && listRequest.current === controller) {
+        setTableLoading(false);
+        listRequest.current = null;
+      }
+    }
+  }, []);
+
+  // ================= OPEN CREATE FORM =================
+
+  const openCreateDrawer = () => {
+    if (requestBusy.current) return;
+
+    reset({ ...EMPTY_FORM });
+    setUpdateId("");
+    setFormError("");
+    setSuccessMessage("");
+    setOpenDrawer(true);
+  };
+
+  // ================= FETCH FOR EDIT =================
+
+  const fetchFuelTypeData = useCallback(
+    async (id) => {
+      if (!id || requestBusy.current) return;
+
+      requestBusy.current = true;
+
+      const controller = new AbortController();
+      formRequest.current = controller;
+
+      reset({ ...EMPTY_FORM });
+      setUpdateId(id);
+      setFormError("");
+      setPageError("");
+      setSuccessMessage("");
+      setFormLoading(true);
+      setOpenDrawer(true);
+
+      try {
+        const { data } = await axiosClient.post(
+          "/fetch_fuel_type_data",
+          { upd_id: id },
+          { signal: controller.signal },
+        );
+
+        if (controller.signal.aborted || !mounted.current) return;
+
+        if (!data.status || !data.data) {
+          throw new Error(data.message || "Unable to fetch fuel type.");
+        }
+
+        const fuelType = data.data;
+
+        setUpdateId(fuelType.ID);
+
+        reset({
+          fuel_type_name: fuelType.fuel_type_name ?? "",
+          description: fuelType.description ?? "",
+          status: Number(fuelType.status) === 1,
+        });
+      } catch (error) {
+        if (controller.signal.aborted || !mounted.current) return;
+
+        reset({ ...EMPTY_FORM });
+        setUpdateId("");
+        setOpenDrawer(false);
+
+        setPageError(getErrorMessage(error, "Unable to fetch fuel type."));
+      } finally {
+        requestBusy.current = false;
+
+        if (formRequest.current === controller) {
+          formRequest.current = null;
+        }
+
+        if (mounted.current) {
+          setFormLoading(false);
+        }
+      }
+    },
+    [reset],
+  );
+
+  // ================= SAVE CREATE / UPDATE =================
+
+  const saveFuelType = async (formData) => {
+    if (requestBusy.current) return;
+
+    requestBusy.current = true;
+
+    const controller = new AbortController();
+    formRequest.current = controller;
+
+    clearErrors();
+    setFormError("");
+    setSuccessMessage("");
+    setSaving(true);
+
+    const payload = {
+      fuel_type_name: formData.fuel_type_name.trim(),
+      description: formData.description.trim() || null,
+      status: formData.status ? 1 : 0,
     };
 
-    const save_data = (form_data) => {
+    if (isEditing) {
+      payload.upd_id = updateId;
+    }
 
+    try {
+      const { data } = await axiosClient.post("/save_fuel_type", payload, {
+        signal: controller.signal,
+      });
 
-        const payload = {
-            fuel_type_name: form_data.fuel_type_name,
-            description: form_data.description,
-            status: form_data.status
-        };
+      if (controller.signal.aborted || !mounted.current) return;
 
-        console.log(payload);
-        setDemoSubmitted(true);
+      if (!data.status) {
+        throw new Error(data.message || "Unable to save fuel type.");
+      }
 
-    };
+      reset({ ...EMPTY_FORM });
+      setUpdateId("");
+      setOpenDrawer(false);
 
-    useEffect(() => {
+      setSuccessMessage(data.message || "Fuel type saved successfully.");
 
-        table.current = new Tabulator(tableRef.current, {
+      // Reload the actual database records after insert/update.
+      await getFuelTypes();
+    } catch (error) {
+      if (controller.signal.aborted || !mounted.current) return;
 
-            layout: "fitColumns",
-            maxHeight: "550px",
-            placeholder: '<div class="ir-table-empty"><strong>No Fuel Types Found</strong><p>Add a record using the create button, or clear your search to see more results.</p></div>',
-            movableColumns: true,
-            columnHeaderVertAlign: "middle",
+      if (error.response?.status === 422) {
+        const serverErrors = error.response.data.errors ?? {};
+        const generalMessages = [];
 
-            //  Dummy Data
-            data: [
-                {
-                    id: 1,
-                    fuel_type_name: "Petrol",
-                    description: "Traditional fuel type commonly used in passenger vehicles.",
-                    status: 1
-                },
-                {
-                    id: 2,
-                    fuel_type_name: "Diesel",
-                    description: "Fuel type suitable for commercial vehicles and heavy-duty usage.",
-                    status: 1
-                },
-                {
-                    id: 3,
-                    fuel_type_name: "Hybrid",
-                    description: "Combination of petrol engine and electric motor for better efficiency.",
-                    status: 1
-                },
-                {
-                    id: 4,
-                    fuel_type_name: "Electric",
-                    description: "Battery-powered vehicles with zero fuel consumption.",
-                    status: 1
-                },
-                {
-                    id: 5,
-                    fuel_type_name: "CNG",
-                    description: "Compressed natural gas used as an alternative fuel source.",
-                    status: 0
-                }
-            ],
+        Object.entries(serverErrors).forEach(([field, messages]) => {
+          const message = Array.isArray(messages)
+            ? messages[0]
+            : String(messages);
 
-            columns: [
-                {
-                    title: "Fuel Type Name",
-                    field: "fuel_type_name",
-                    frozen: true,
-                    width: 180
-                },
-                {
-                    title: "Description",
-                    field: "description",
-                    widthGrow: 2
-                },
-                {
-                    title: "Status",
-                    field: "status",
-                    hozAlign: "center",
-                    width: 130,
-                    formatter: function (cell) {
-                        let value = cell.getValue();
-                        if (value == 1) {
-                            return `<span class="inline-flex items-center rounded-full bg-[var(--success-soft)] px-3 py-1 text-xs font-medium text-[var(--success)]">Active</span>`;
-                        }
-                        return `<span class="inline-flex items-center rounded-full bg-[var(--danger-soft)] px-3 py-1 text-xs font-medium text-destructive">Deactive</span>`;
-                    },
-                },
-                {
-                    title: "Actions",
-                    field: "id",
-                    hozAlign: "center",
-                    width: 110,
-                    headerSort: false,
-                    formatter: function () {
-                        return `
-                            <div class="flex items-center justify-center">
-                                <button aria-label="Edit record" title="Edit record" class="table-action-btn">
-                                    <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="m16 3 5 5M9 15l-1 4 4-1L22 8a2.1 2.1 0 0 0-5-5Z"/></svg>
-                                </button>
-                            </div>
-                        `;
-                    }
-                }
-            ]
-
+          if (Object.prototype.hasOwnProperty.call(EMPTY_FORM, field)) {
+            setError(field, {
+              type: "server",
+              message,
+            });
+          } else {
+            generalMessages.push(message);
+          }
         });
 
-        return () => {
-            table.current?.destroy();
-        };
+        if (generalMessages.length) {
+          setFormError(generalMessages.join(" "));
+        } else if (!Object.keys(serverErrors).length) {
+          setFormError("Please check the submitted values.");
+        }
+      } else {
+        setFormError(getErrorMessage(error, "Unable to save fuel type."));
+      }
+    } finally {
+      requestBusy.current = false;
 
-    }, []);
+      if (formRequest.current === controller) {
+        formRequest.current = null;
+      }
 
-    return (
+      if (mounted.current) {
+        setSaving(false);
+      }
+    }
+  };
 
-        <>
-            <PageHeader
-                title="Fuel Type Management"
-                sub_text="Create, manage and maintain vehicle fuel types."
-                breadcrumbs={[
-                    { label: "Fuel Type" },
-                    { label: "Fuel Type Management" }
-                ]}
-            />
+  // ================= CLOSE DRAWER =================
 
-            <div className="management-page">
-                <div className="page-container">
-                    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+  const handleDrawerChange = (open) => {
+    if (requestBusy.current) return;
 
-                        <button
-                            className="btn-primary management-add"
-                            onClick={() => { reset_form(); setOpenDrawer(true); }}
-                        >
-                            <Plus size={16} aria-hidden="true" className="mr-2"/>
-                            Add Fuel Type
-                        </button>
+    setOpenDrawer(open);
 
-                        <CustomDrawer
-                            open={openDrawer}
-                            setOpen={setOpenDrawer}
-                            title="Create Fuel Type"
-                            description="Add a new vehicle fuel type"
-                            submitText="Save Fuel Type"
-                            onSubmit={handleSubmit(save_data)}
-                            size="max-w-2xl"
-                        >
-                            <form onSubmit={handleSubmit(save_data)} noValidate>
-                                <p className="form-hint">Sample workspace. You can explore and validate this form; saving records is not connected in this module.</p>
-                                {demoSubmitted && <p className="demo-submit-note" role="status">Form validated. This preview does not save a record.</p>}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+    if (!open) {
+      reset({ ...EMPTY_FORM });
+      setUpdateId("");
+      setFormError("");
+    }
+  };
 
-                                    <div className="md:col-span-2">
-                                        <label className="block text-sm font-semibold text-foreground mb-2">
-                                            Fuel Type Name
-                                        </label>
-                                        <Input aria-label="Fuel Type Name"
-                                            {...register("fuel_type_name", { required: "This field is required." })} error={errors.fuel_type_name?.message}
-                                            type="text"
-                                            placeholder="Enter fuel type name"
-                                            className="custom-input-sm"
-                                        />
-                                    </div>
+  // ================= INITIALIZE TABLE =================
 
-                                    <div className="md:col-span-2">
-                                        <label className="block text-sm font-semibold text-foreground mb-2">
-                                            Description
-                                        </label>
-                                        <Textarea aria-label="Description"
-                                            {...register("description")} error={errors.description?.message}
-                                            rows="4"
-                                            placeholder="Enter description"
-                                            className="custom-input-sm resize-none"
-                                        />
-                                    </div>
+  useEffect(() => {
+    const fuelTable = new Tabulator(tableRef.current, {
+      index: "id",
+      layout: "fitColumns",
+      maxHeight: "550px",
+      movableColumns: true,
+      columnHeaderVertAlign: "middle",
+      placeholder: "No fuel types found.",
 
-                                    <div className="md:col-span-2">
-                                        <label className="block text-sm font-semibold text-foreground mb-3">
-                                            Status
-                                        </label>
-                                        <div className="flex items-center gap-3">
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                                <Input aria-label="Status"
-                                                    {...register("status")} error={errors.status?.message}
-                                                    type="checkbox"
-                                                    className="sr-only peer"
-                                                />
-                                                <div className="w-11 h-6 bg-secondary rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
-                                            </label>
-                                            <span className="text-sm text-muted-foreground">
-                                                {status ? "Active" : "Inactive"}
-                                            </span>
-                                        </div>
-                                    </div>
+      columns: [
+        {
+          title: "Fuel Type Name",
+          field: "fuel_type_name",
+          formatter: "plaintext",
+          frozen: true,
+          width: 180,
+        },
+        {
+          title: "Description",
+          field: "description",
+          formatter: "plaintext",
+          minWidth: 220,
+          widthGrow: 2,
+        },
+        {
+          title: "Status",
+          field: "status",
+          hozAlign: "center",
+          width: 120,
 
-                                </div>
-                            </form>
-                        </CustomDrawer>
+          formatter: (cell) =>
+            Number(cell.getValue()) === 1
+              ? `<span class="inline-flex items-center rounded-full bg-[var(--success-soft)] px-3 py-1 text-xs font-medium text-[var(--success)]">Active</span>`
+              : `<span class="inline-flex items-center rounded-full bg-[var(--danger-soft)] px-3 py-1 text-xs font-medium text-destructive">Inactive</span>`,
+        },
+        {
+          title: "Actions",
+          field: "id",
+          hozAlign: "center",
+          width: 100,
+          headerSort: false,
 
-                        <div className="xl:col-span-12">
-                            <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
-                                <div className="flex items-center justify-between px-6 py-5 border-b">
-                                    <div>
-                                        <h2 className="text-base font-semibold text-foreground">
-                                            Fuel Type List
-                                        </h2>
-                                        <p className="text-sm text-muted-foreground mt-1">
-                                            Manage available fuel types.
-                                        </p>
-                                    </div>
-                                    <span className="px-3 py-1 rounded-full bg-[var(--info-soft)] text-primary text-sm font-medium">
-                                        Fuel Types
-                                    </span>
-                                </div>
+          formatter: () => `
+            <button
+              type="button"
+              class="table-action-btn"
+              aria-label="Edit fuel type"
+              title="Edit fuel type"
+            >
+              <svg
+                aria-hidden="true"
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="m16 3 5 5M9 15l-1 4 4-1L22 8a2.1 2.1 0 0 0-5-5Z"/>
+              </svg>
+            </button>
+          `,
 
-                                <div className="p-6">
-                                    <TableSearch table={table}/>
-                  <div
-                                        ref={tableRef}
-                                        className="rounded-xl border border-border overflow-hidden"
-                                    />
-                                </div>
-                            </div>
-                        </div>
+          cellClick: (event, cell) => {
+            if (!event.target.closest("button")) return;
 
-                    </div>
-                </div>
+            void fetchFuelTypeData(cell.getRow().getData().id);
+          },
+        },
+      ],
+    });
+
+    table.current = fuelTable;
+    fuelTable.on("tableBuilt", getFuelTypes);
+
+    return () => {
+      listRequest.current?.abort();
+
+      fuelTable.off("tableBuilt", getFuelTypes);
+      fuelTable.destroy();
+
+      if (table.current === fuelTable) {
+        table.current = null;
+      }
+    };
+  }, [fetchFuelTypeData, getFuelTypes]);
+
+  // ================= BUTTON TEXT =================
+
+  let submitText = isEditing ? "Update Fuel Type" : "Save Fuel Type";
+
+  if (formLoading) {
+    submitText = "Loading...";
+  } else if (saving) {
+    submitText = isEditing ? "Updating..." : "Saving...";
+  }
+
+  // ================= UI =================
+
+  return (
+    <>
+      <PageHeader
+        title="Fuel Type Management"
+        sub_text="Create, manage and maintain vehicle fuel types."
+        breadcrumbs={[
+          { label: "Fuel Type" },
+          { label: "Fuel Type Management" },
+        ]}
+      />
+
+      <div className="management-page">
+        <div className="page-container">
+          {pageError && (
+            <div
+              role="alert"
+              className="mb-5 flex items-start gap-2 rounded-lg border border-red-200 bg-[var(--danger-soft)] px-4 py-3"
+            >
+              <TriangleAlert
+                size={16}
+                aria-hidden="true"
+                className="mt-0.5 shrink-0 text-destructive"
+              />
+
+              <div>
+                <p className="text-sm text-destructive">{pageError}</p>
+
+                <button
+                  type="button"
+                  disabled={tableLoading}
+                  onClick={() => void getFuelTypes()}
+                  className="mt-2 text-sm font-semibold underline disabled:opacity-50"
+                >
+                  Retry loading fuel types
+                </button>
+              </div>
             </div>
+          )}
 
-        </>
+          {successMessage && (
+            <div
+              role="status"
+              className="mb-5 rounded-lg border border-border bg-[var(--info-soft)] px-4 py-3 text-sm text-primary"
+            >
+              {successMessage}
+            </div>
+          )}
 
-    );
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+            <button
+              type="button"
+              className="btn-primary management-add"
+              disabled={isBusy}
+              onClick={openCreateDrawer}
+            >
+              <Plus size={16} aria-hidden="true" className="mr-2" />
+              Add Fuel Type
+            </button>
 
+            <CustomDrawer
+              open={openDrawer}
+              setOpen={handleDrawerChange}
+              saving={isBusy}
+              title={isEditing ? "Update Fuel Type" : "Create Fuel Type"}
+              description="Add or update a vehicle fuel type."
+              submitText={submitText}
+              onSubmit={handleSubmit(saveFuelType)}
+              size="max-w-2xl"
+            >
+              {formError && (
+                <div
+                  role="alert"
+                  className="mb-5 rounded-lg border border-red-200 bg-[var(--danger-soft)] px-4 py-3 text-sm text-destructive"
+                >
+                  {formError}
+                </div>
+              )}
+
+              {formLoading && (
+                <p role="status" className="mb-4 text-sm text-muted-foreground">
+                  Loading fuel type details...
+                </p>
+              )}
+
+              <form
+                noValidate
+                aria-busy={isBusy}
+                onSubmit={handleSubmit(saveFuelType)}
+              >
+                <fieldset
+                  disabled={isBusy}
+                  className="m-0 min-w-0 space-y-5 border-0 p-0"
+                >
+                  <div>
+                    <label
+                      htmlFor="fuel_type_name"
+                      className="mb-2 block text-sm font-semibold"
+                    >
+                      Fuel Type Name
+                    </label>
+
+                    <Input
+                      id="fuel_type_name"
+                      type="text"
+                      maxLength={100}
+                      placeholder="Enter fuel type name"
+                      className="custom-input-sm"
+                      aria-invalid={!!errors.fuel_type_name}
+                      {...register("fuel_type_name", {
+                        required: "Fuel type name is required.",
+                        validate: (value) =>
+                          value.trim().length > 0 ||
+                          "Fuel type name cannot contain only spaces.",
+                        maxLength: {
+                          value: 100,
+                          message: "Maximum 100 characters.",
+                        },
+                      })}
+                    />
+
+                    <FieldError errors={errors} name="fuel_type_name" />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="fuel_description"
+                      className="mb-2 block text-sm font-semibold"
+                    >
+                      Description
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        Optional
+                      </span>
+                    </label>
+
+                    <Textarea
+                      id="fuel_description"
+                      rows={4}
+                      maxLength={500}
+                      placeholder="Enter description"
+                      className="custom-input-sm resize-none"
+                      aria-invalid={!!errors.description}
+                      {...register("description", {
+                        maxLength: {
+                          value: 500,
+                          message: "Maximum 500 characters.",
+                        },
+                      })}
+                    />
+
+                    <FieldError errors={errors} name="description" />
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-secondary/20 p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <label
+                          htmlFor="fuel_status"
+                          className="block text-sm font-semibold"
+                        >
+                          Active Status
+                        </label>
+
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {status
+                            ? "This fuel type is marked as active."
+                            : "This fuel type is marked as inactive."}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-muted-foreground">
+                          {status ? "Active" : "Inactive"}
+                        </span>
+
+                        <label className="relative inline-flex cursor-pointer items-center">
+                          <input
+                            id="fuel_status"
+                            type="checkbox"
+                            className="peer sr-only"
+                            {...register("status")}
+                          />
+
+                          <span
+                            aria-hidden="true"
+                            className="h-6 w-11 rounded-full bg-secondary transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-focus-visible:ring-offset-2 peer-disabled:opacity-50"
+                          />
+
+                          <span
+                            aria-hidden="true"
+                            className="absolute left-1 top-1 h-4 w-4 rounded-full bg-card shadow-sm transition-transform peer-checked:translate-x-5"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <FieldError errors={errors} name="status" />
+                  </div>
+                </fieldset>
+              </form>
+            </CustomDrawer>
+
+            <div className="xl:col-span-12">
+              <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+                <div className="flex items-center justify-between gap-4 border-b px-6 py-5">
+                  <div>
+                    <h2 className="text-base font-semibold">Fuel Type List</h2>
+
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Manage available fuel types.
+                    </p>
+                  </div>
+
+                  <span className="rounded-full bg-[var(--info-soft)] px-3 py-1 text-sm font-medium text-primary">
+                    Fuel Types
+                  </span>
+                </div>
+
+                <div
+                  id="fuel-type-tb"
+                  className="relative p-6"
+                  aria-busy={tableLoading}
+                >
+                  <TableSearch table={table} />
+
+                  <div
+                    ref={tableRef}
+                    className="overflow-hidden rounded-xl border border-border"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <CarLoader
+        targetId="fuel-type-tb"
+        show={tableLoading}
+        text="Loading Fuel Types"
+      />
+    </>
+  );
 }
