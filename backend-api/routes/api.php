@@ -9,6 +9,11 @@ use App\Http\Controllers\Api\StaffController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VehicleCategoryController;
 use App\Http\Controllers\Api\VehicleBrandController;
+use App\Http\Controllers\Api\FuelTypeController;
+use App\Http\Controllers\Api\VehicleTransmissionController;
+use App\Http\Controllers\Api\VehicleFeaturesController;
+use App\Http\Controllers\Api\VehicleModelsController;
+use App\Http\Controllers\Api\RegisterVehicleController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -60,6 +65,36 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/fetch_vehicle_brand_data', 'fetchVehicleBrandData');
     });
 
+    Route::controller(FuelTypeController::class)->group(function () {
+        Route::post('/save_fuel_type', 'saveFuelType');
+        Route::post('/get_fuel_types', 'getFuelTypes');
+        Route::post('/fetch_fuel_type_data', 'fetchFuelTypeData');
+    });
+
+    Route::controller(VehicleTransmissionController::class)->group(function () {
+        Route::post('/save_vehicle_transmission', 'saveVehicleTransmission');
+        Route::post('/get_vehicle_transmissions', 'getVehicleTransmissions');
+        Route::post('/fetch_vehicle_transmission_data', 'fetchVehicleTransmissionData');
+    });
+
+    Route::controller(VehicleFeaturesController::class)->group(function () {
+        Route::post('/save_vehicle_feature', 'saveVehicleFeature');
+        Route::post('/get_vehicle_features', 'getVehicleFeatures');
+        Route::post('/fetch_vehicle_feature_data', 'fetchVehicleFeatureData');
+    });
+
+    Route::controller(VehicleModelsController::class)->group(function () {
+        Route::post('/save_vehicle_model', 'saveVehicleModel');
+        Route::post('/get_vehicle_models', 'getVehicleModels');
+        Route::post('/fetch_vehicle_model_data', 'fetchVehicleModelData');
+    });
+
+    Route::controller(RegisterVehicleController::class)->group(function () {
+        Route::post('/save_vehicle', 'saveVehicle');
+        Route::post('/get_vehicles', 'getVehicles');
+        Route::post('/fetch_vehicle_data', 'fetchVehicleData');
+    });
+
     Route::controller(InputFiltersController::class)->group(function () {
         Route::post('/branch_filter', 'branchFilter');
     });
@@ -67,6 +102,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/activity', [AuthController::class, 'activity']);
     Route::post('/logout', [AuthController::class, 'logout']);
 });
+
+// IMAGE FUNCTIONALITY: public vehicle photo display.
+Route::get(
+    '/registered-vehicle-images/{folder}/{filename}',
+    [RegisterVehicleController::class, 'showImage']
+)
+    ->where('folder', 'vehicle_[1-9][0-9]*')
+    ->where('filename', '[a-f0-9-]+\.(jpg|jpeg|png|webp)');
 
 // IMAGE FUNCTIONALITY: public display of brand logos.
 Route::get(
