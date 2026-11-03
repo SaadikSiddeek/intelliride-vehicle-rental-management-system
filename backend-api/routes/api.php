@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\VehicleTransmissionController;
 use App\Http\Controllers\Api\VehicleFeaturesController;
 use App\Http\Controllers\Api\VehicleModelsController;
 use App\Http\Controllers\Api\RegisterVehicleController;
+use App\Http\Controllers\Api\BranchController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -93,6 +94,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/save_vehicle', 'saveVehicle');
         Route::post('/get_vehicles', 'getVehicles');
         Route::post('/fetch_vehicle_data', 'fetchVehicleData');
+    });
+
+    Route::controller(BranchController::class)->group(function () {
+        Route::post('/save_branch', 'saveBranch');
+        Route::post('/get_branches', 'getBranches');
+        Route::post('/fetch_branch_data', 'fetchBranchData');
+        Route::post('/delete_branch', 'deleteBranch');
     });
 
     Route::controller(InputFiltersController::class)->group(function () {
