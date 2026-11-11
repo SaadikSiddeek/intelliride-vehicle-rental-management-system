@@ -15,6 +15,8 @@ use App\Http\Controllers\Api\VehicleFeaturesController;
 use App\Http\Controllers\Api\VehicleModelsController;
 use App\Http\Controllers\Api\RegisterVehicleController;
 use App\Http\Controllers\Api\BranchController;
+use App\Http\Controllers\Api\CustomerController;
+use App\Http\Controllers\Api\RentalPackageController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -103,8 +105,34 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/delete_branch', 'deleteBranch');
     });
 
+    Route::controller(CustomerController::class)->group(function () {
+        Route::post('/save_customer', 'saveCustomer');
+        Route::post('/get_customers', 'getCustomers');
+        Route::post('/fetch_customer_data', 'fetchCustomerData');
+
+        Route::get('/customer_documents/{id}', 'downloadDocument')
+            ->whereNumber('id');
+    });
+
+    Route::controller(RentalPackageController::class)->group(function () {
+        Route::post('/save_rental_package', 'saveRentalPackage');
+        Route::post('/get_rental_packages', 'getRentalPackages');
+        Route::post('/fetch_rental_package_data', 'fetchRentalPackageData');
+        Route::post('/rental_package_vehicles', 'getPackageVehicles');
+    });
+
     Route::controller(InputFiltersController::class)->group(function () {
-        Route::post('/branch_filter', 'branchFilter');
+        Route::post('/staff_filter', 'staffInputFilter');
+        Route::post('/role_filter', 'roleInputFilter');
+
+        Route::post('/branch_filter', 'branchInputFilter');
+        Route::post('/department_filter', 'departmentInputFilter');
+        Route::post('/designation_filter', 'designationInputFilter');
+        Route::post('/fuel_type_filter', 'fuelTypeInputFilter');
+        Route::post('/transmission_type_filter', 'transmissionTypeInputFilter');
+        Route::post('/brand_filter', 'brandInputFilter');
+        Route::post('/model_filter', 'modelInputFilter');
+        Route::post('/vehciel_category_filter', 'vehicleCatInputFilter');
     });
 
     Route::post('/auth/activity', [AuthController::class, 'activity']);

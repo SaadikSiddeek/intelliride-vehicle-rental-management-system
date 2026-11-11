@@ -89,9 +89,9 @@ class UserController extends Controller
                     'string',
                 ],
                 'emp_id' => [
-                    'nullable',
-                    'string',
-                    'max:50',
+                    'required',
+                    'integer',
+                    'exists:staff_tb,ID',
                 ],
             ]);
 
