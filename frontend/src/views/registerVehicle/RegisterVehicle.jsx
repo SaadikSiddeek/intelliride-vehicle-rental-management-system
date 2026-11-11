@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { Plus, Trash2, Undo2, TriangleAlert } from "lucide-react";
 import { TabulatorFull as Tabulator } from "tabulator-tables";
 
@@ -10,6 +10,7 @@ import PageHeader from "@/components/PageHeader";
 import CustomDrawer from "@/components/Drawer";
 import CarLoader from "@/components/CarLoader";
 import axiosClient from "@/axios-client";
+import Select2 from "@/components/Select2";
 
 import "tabulator-tables/dist/css/tabulator.min.css";
 
@@ -36,165 +37,82 @@ const EMPTY_FORM = {
   vehicle_status: "",
 };
 
-const EMPTY_OPTIONS = {
-  categories: [],
-  brands: [],
-  models: [],
-  fuels: [],
-  transmissions: [],
-  features: [],
+// Used to name the field in the error summary at the top of the form.
+const FIELD_LABELS = {
+  number_plate: "Vehicle Number Plate",
+  category: "Category",
+  brand: "Brand",
+  model: "Model",
+  manufacture_year: "Manufacture Year",
+  color: "Color",
+  fuel_type: "Fuel Type",
+  transmission: "Transmission",
+  engine_number: "Engine Number",
+  chassis_number: "Chassis Number",
+  mileage: "Mileage",
+  seating_capacity: "Seating Capacity",
+  purchase_date: "Purchase Date",
+  purchase_price: "Purchase Price",
+  daily_rental_rate: "Daily Rental Rate",
+  weekly_rental_rate: "Weekly Rental Rate",
+  monthly_rental_rate: "Monthly Rental Rate",
+  insurance_expiry_date: "Insurance Expiry Date",
+  registration_expiry_date: "Registration Expiry Date",
+  vehicle_status: "Vehicle Status",
+  features: "Features",
+  images: "Images",
 };
 
-const VEHICLE_STATUSES = [
-  "Available",
-  "Rented",
-  "Under Maintenance",
-  "Out of Service",
-];
+const EMPTY_OPTIONS = {
+  categories: [],
+  models: [],
+  features: [],
+};
 
 const MAX_IMAGES = 10;
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
-const SECTIONS = [
-  {
-    title: "Vehicle identity",
-    description: "Registration and basic vehicle details.",
-    fields: [
-      {
-        name: "number_plate",
-        label: "Vehicle Number Plate",
-        required: true,
-        maxLength: 50,
-        placeholder: "e.g. CAB-1234",
-        wide: true,
-      },
-      {
-        name: "category",
-        label: "Category",
-        options: "categories",
-        labelKey: "category_name",
-        required: true,
-      },
-      {
-        name: "brand",
-        label: "Brand",
-        options: "brands",
-        labelKey: "brand_name",
-        required: true,
-      },
-      {
-        name: "model",
-        label: "Model",
-        options: "models",
-        labelKey: "model_name",
-        required: true,
-      },
-      {
-        name: "manufacture_year",
-        label: "Manufacture Year",
-        type: "number",
-        min: 1886,
-        integer: true,
-      },
-      {
-        name: "color",
-        label: "Color",
-        maxLength: 50,
-        placeholder: "e.g. White",
-      },
-    ],
-  },
-  {
-    title: "Specifications",
-    description: "Technical information and capacity.",
-    fields: [
-      {
-        name: "fuel_type",
-        label: "Fuel Type",
-        options: "fuels",
-        labelKey: "fuel_type_name",
-        required: true,
-      },
-      {
-        name: "transmission",
-        label: "Transmission",
-        options: "transmissions",
-        labelKey: "transmission_name",
-        required: true,
-      },
-      { name: "engine_number", label: "Engine Number", maxLength: 100 },
-      { name: "chassis_number", label: "Chassis Number", maxLength: 100 },
-      { name: "mileage", label: "Mileage (km)", type: "number", min: 0 },
-      {
-        name: "seating_capacity",
-        label: "Seating Capacity",
-        type: "number",
-        min: 1,
-        max: 200,
-        integer: true,
-      },
-    ],
-  },
-  {
-    title: "Purchase & pricing",
-    description: "Ownership details and rental rates.",
-    fields: [
-      { name: "purchase_date", label: "Purchase Date", type: "date" },
-      {
-        name: "purchase_price",
-        label: "Purchase Price",
-        type: "number",
-        min: 0,
-      },
-      {
-        name: "daily_rental_rate",
-        label: "Daily Rental Rate",
-        type: "number",
-        min: 0,
-        required: true,
-      },
-      {
-        name: "weekly_rental_rate",
-        label: "Weekly Rental Rate",
-        type: "number",
-        min: 0,
-      },
-      {
-        name: "monthly_rental_rate",
-        label: "Monthly Rental Rate",
-        type: "number",
-        min: 0,
-      },
-    ],
-  },
-  {
-    title: "Compliance & availability",
-    description: "Key dates and operating status.",
-    fields: [
-      {
-        name: "insurance_expiry_date",
-        label: "Insurance Expiry Date",
-        type: "date",
-      },
-      {
-        name: "registration_expiry_date",
-        label: "Registration Expiry Date",
-        type: "date",
-      },
-      {
-        name: "vehicle_status",
-        label: "Vehicle Status",
-        statusOptions: true,
-        required: true,
-        wide: true,
-      },
-    ],
-  },
-];
-
+// Turns any failed request into a message the user can understand.
 function getErrorMessage(error, fallback) {
-  return error.response?.data?.message || error.message || fallback;
+  const response = error.response;
+
+  // The request never reached the server (or no reply came back).
+  if (!response) {
+    if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") {
+      return "The request timed out. Please check your connection and try again.";
+    }
+
+    if (error.code === "ERR_NETWORK" || error.message === "Network Error") {
+      return "Cannot reach the server. Please check your internet connection and try again.";
+    }
+
+    return error.message || fallback;
+  }
+
+  const data =
+    response.data && typeof response.data === "object" ? response.data : {};
+
+  switch (response.status) {
+    case 401:
+      return "Your session has expired. Please log in again.";
+    case 413:
+      return "The selected images are too large to upload together. Remove some images or use smaller ones.";
+    case 419:
+      return "Your session has expired. Please refresh the page and try again.";
+    case 429:
+      return "Too many requests. Please wait a moment and try again.";
+    default:
+      break;
+  }
+
+  const serverMessage =
+    typeof data.message === "string" ? data.message.trim() : "";
+  const details = data.debug ? ` Details: ${data.debug}` : "";
+
+  if (serverMessage) return serverMessage + details;
+
+  return `${fallback} (Server responded with status ${response.status}.)`;
 }
 
 // IMAGE FUNCTIONALITY:
@@ -248,6 +166,7 @@ export default function VehicleRegistration() {
 
   const [pageError, setPageError] = useState("");
   const [formError, setFormError] = useState("");
+  const [formErrorList, setFormErrorList] = useState([]);
   const [successMessage, setSuccessMessage] = useState("");
 
   const [selectedFeatures, setSelectedFeatures] = useState([]);
@@ -265,6 +184,11 @@ export default function VehicleRegistration() {
   const mounted = useRef(false);
   const listRequest = useRef(null);
   const formRequest = useRef(null);
+  const errorBannerRef = useRef(null);
+
+  const methods = useForm({
+    defaultValues: EMPTY_FORM,
+  });
 
   const {
     register,
@@ -272,18 +196,56 @@ export default function VehicleRegistration() {
     handleSubmit,
     reset,
     setValue,
+    getValues,
     clearErrors,
     setError,
     formState: { errors },
-  } = useForm({
-    defaultValues: EMPTY_FORM,
-  });
+  } = methods;
 
   const selectedBrand = useWatch({ control, name: "brand" });
 
   const isEditing = updateId !== "";
   const isBusy = saving || formLoading;
   const maxYear = new Date().getFullYear() + 1;
+
+  // Sets (or clears) the error banner shown at the top of the form.
+  const showFormError = useCallback((message, list = []) => {
+    setFormError(message);
+    setFormErrorList(list);
+  }, []);
+
+  // Bring the error banner into view so the user always sees why it failed.
+  useEffect(() => {
+    if (formError) {
+      errorBannerRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [formError, formErrorList]);
+
+  // Clear an incompatible model after the brand selection changes.
+  useEffect(() => {
+    if (formLoading) return;
+    const modelId = getValues("model");
+    if (!modelId) return;
+    const matchesBrand = options.models.some(
+      (model) =>
+        String(model.ID) === String(modelId) &&
+        String(model.brand_id) === String(selectedBrand),
+    );
+    if (!matchesBrand) {
+      setValue("model", "", { shouldDirty: true });
+      clearErrors("model");
+    }
+  }, [
+    selectedBrand,
+    options.models,
+    formLoading,
+    getValues,
+    setValue,
+    clearErrors,
+  ]);
 
   useEffect(() => {
     mounted.current = true;
@@ -337,7 +299,11 @@ export default function VehicleRegistration() {
         throw new Error(data.message || "Unable to load vehicles.");
       }
 
-      setOptions(data.options);
+      setOptions({
+        categories: data.options.categories,
+        models: data.options.models,
+        features: data.options.features,
+      });
       await table.current?.setData(data.data);
     } catch (error) {
       if (controller.signal.aborted || !mounted.current) return;
@@ -359,7 +325,7 @@ export default function VehicleRegistration() {
     reset({ ...EMPTY_FORM });
     resetExtras();
     setUpdateId("");
-    setFormError("");
+    showFormError("");
     setSuccessMessage("");
     setOpenDrawer(true);
   };
@@ -378,7 +344,7 @@ export default function VehicleRegistration() {
       reset({ ...EMPTY_FORM });
       resetExtras();
       setUpdateId(id);
-      setFormError("");
+      showFormError("");
       setPageError("");
       setSuccessMessage("");
       setFormLoading(true);
@@ -431,7 +397,7 @@ export default function VehicleRegistration() {
         if (mounted.current) setFormLoading(false);
       }
     },
-    [reset, resetExtras],
+    [reset, resetExtras, showFormError],
   );
 
   // ================= FEATURES =================
@@ -532,7 +498,7 @@ export default function VehicleRegistration() {
     formRequest.current = controller;
 
     clearErrors();
-    setFormError("");
+    showFormError("");
     setSuccessMessage("");
     setSaving(true);
 
@@ -574,32 +540,44 @@ export default function VehicleRegistration() {
       resetExtras();
       setUpdateId("");
       setOpenDrawer(false);
+      showFormError("");
       setSuccessMessage(data.message || "Vehicle saved successfully.");
 
       await getVehicles();
     } catch (error) {
       if (controller.signal.aborted || !mounted.current) return;
 
+      const responseData =
+        error.response?.data && typeof error.response.data === "object"
+          ? error.response.data
+          : {};
+
       if (error.response?.status === 422) {
-        const serverErrors = error.response.data.errors ?? {};
-        const generalMessages = [];
+        const serverErrors =
+          responseData.errors && typeof responseData.errors === "object"
+            ? responseData.errors
+            : {};
+        const summary = [];
         const groupedMessages = {};
 
         Object.entries(serverErrors).forEach(([field, messages]) => {
-          const message = Array.isArray(messages)
-            ? messages[0]
-            : String(messages);
+          const list = (Array.isArray(messages) ? messages : [messages]).map(
+            String,
+          );
 
           const root = field.split(".")[0];
 
           if (root === "images" || root === "features") {
             groupedMessages[root] ??= [];
-            groupedMessages[root].push(message);
+            groupedMessages[root].push(...list);
           } else if (Object.prototype.hasOwnProperty.call(EMPTY_FORM, field)) {
-            setError(field, { type: "server", message });
-          } else {
-            generalMessages.push(message);
+            // Show the error under the field itself.
+            setError(field, { type: "server", message: list[0] });
           }
+
+          // Every message also goes in the summary at the top, so nothing
+          // is hidden when the field is scrolled out of view.
+          summary.push(...list);
         });
 
         Object.entries(groupedMessages).forEach(([field, messages]) => {
@@ -609,15 +587,17 @@ export default function VehicleRegistration() {
           });
         });
 
-        if (generalMessages.length) {
-          setFormError(generalMessages.join(" "));
-        } else if (!Object.keys(serverErrors).length) {
-          setFormError(
-            error.response.data.message || "Please check the submitted values.",
+        if (summary.length) {
+          showFormError("Please correct the following before saving:", [
+            ...new Set(summary),
+          ]);
+        } else {
+          showFormError(
+            responseData.message || "Please check the submitted values.",
           );
         }
       } else {
-        setFormError(getErrorMessage(error, "Unable to save vehicle."));
+        showFormError(getErrorMessage(error, "Unable to save vehicle."));
       }
     } finally {
       requestBusy.current = false;
@@ -630,6 +610,31 @@ export default function VehicleRegistration() {
     }
   };
 
+  // Runs when client-side validation fails, so the user is told exactly why
+  // nothing was submitted instead of the button seeming to do nothing.
+  const onInvalid = (formErrors) => {
+    const items = Object.entries(formErrors ?? {}).map(([name, err]) => {
+      const label = FIELD_LABELS[name] || name;
+
+      return `${label}: ${err?.message || "Invalid value."}`;
+    });
+
+    setSuccessMessage("");
+    showFormError(
+      "Please correct the following before saving:",
+      items.length ? items : [],
+    );
+  };
+
+  // The images/features errors are not registered inputs. react-hook-form
+  // would keep them and silently block every later submit, so clear them
+  // first. The server re-validates both anyway.
+  const submitForm = (event) => {
+    clearErrors(["images", "features"]);
+
+    return handleSubmit(saveVehicle, onInvalid)(event);
+  };
+
   const handleDrawerChange = (open) => {
     if (requestBusy.current) return;
 
@@ -639,7 +644,7 @@ export default function VehicleRegistration() {
       reset({ ...EMPTY_FORM });
       resetExtras();
       setUpdateId("");
-      setFormError("");
+      showFormError("");
     }
   };
 
@@ -770,130 +775,6 @@ export default function VehicleRegistration() {
 
   // ================= FORM FIELDS =================
 
-  const renderField = (field) => {
-    const id = `vehicle_${field.name}`;
-    const rules = {};
-
-    if (field.required) {
-      rules.required = `${field.label} is required.`;
-    }
-
-    if (field.maxLength) {
-      rules.maxLength = {
-        value: field.maxLength,
-        message: `Maximum ${field.maxLength} characters.`,
-      };
-    }
-
-    if (field.type === "number") {
-      rules.validate = (value) => {
-        if (value === "") return true;
-
-        const number = Number(value);
-
-        if (!Number.isFinite(number)) return "Enter a valid number.";
-
-        if (field.integer && !Number.isInteger(number)) {
-          return "Enter a whole number.";
-        }
-
-        if (field.min !== undefined && number < field.min) {
-          return `Minimum value is ${field.min}.`;
-        }
-
-        const maximum = field.name === "manufacture_year" ? maxYear : field.max;
-
-        if (maximum !== undefined && number > maximum) {
-          return `Maximum value is ${maximum}.`;
-        }
-
-        return true;
-      };
-    } else if (field.required && !field.options && !field.statusOptions) {
-      rules.validate = (value) =>
-        String(value).trim().length > 0 ||
-        `${field.label} cannot contain only spaces.`;
-    }
-
-    if (field.name === "brand") {
-      rules.onChange = () => {
-        setValue("model", "", { shouldDirty: true });
-        clearErrors("model");
-      };
-    }
-
-    let entries = field.options ? options[field.options] : [];
-
-    if (field.name === "model") {
-      entries = entries.filter(
-        (model) => String(model.brand_id) === String(selectedBrand),
-      );
-    }
-
-    return (
-      <div key={field.name} className={field.wide ? "sm:col-span-2" : ""}>
-        <label htmlFor={id} className="mb-2 block text-sm font-semibold">
-          {field.label}
-          {!field.required && (
-            <span className="ml-2 text-xs font-normal text-muted-foreground">
-              Optional
-            </span>
-          )}
-        </label>
-
-        {field.options || field.statusOptions ? (
-          <NativeSelect
-            id={id}
-            className="custom-input-sm"
-            aria-invalid={!!errors[field.name]}
-            disabled={field.name === "model" && !selectedBrand}
-            {...register(field.name, rules)}
-          >
-            <option value="">Select {field.label.toLowerCase()}</option>
-
-            {field.statusOptions
-              ? VEHICLE_STATUSES.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))
-              : entries.map((entry) => (
-                  <option key={entry.ID} value={String(entry.ID)}>
-                    {entry[field.labelKey]}
-                    {field.name === "model" && entry.manufacture_year
-                      ? ` (${entry.manufacture_year})`
-                      : ""}
-                  </option>
-                ))}
-          </NativeSelect>
-        ) : (
-          <Input
-            id={id}
-            type={field.type ?? "text"}
-            maxLength={field.maxLength}
-            min={field.min}
-            max={field.name === "manufacture_year" ? maxYear : field.max}
-            step={
-              field.type === "number"
-                ? field.integer
-                  ? "1"
-                  : "0.01"
-                : undefined
-            }
-            placeholder={
-              field.placeholder ?? `Enter ${field.label.toLowerCase()}`
-            }
-            className="custom-input-sm"
-            aria-invalid={!!errors[field.name]}
-            {...register(field.name, rules)}
-          />
-        )}
-
-        <FieldError errors={errors} name={field.name} />
-      </div>
-    );
-  };
-
   const keptImageCount =
     savedImages.length - removedImageIds.length + newImages.length;
 
@@ -964,12 +845,25 @@ export default function VehicleRegistration() {
               title={isEditing ? "Update Vehicle" : "Register Vehicle"}
               description="Manage vehicle details, features and photographs."
               submitText={submitText}
-              onSubmit={handleSubmit(saveVehicle)}
+              onSubmit={submitForm}
               size="max-w-3xl"
             >
               {formError && (
-                <div role="alert" className="form-alert mb-5">
-                  {formError}
+                <div
+                  ref={errorBannerRef}
+                  role="alert"
+                  className="form-alert mb-5"
+                >
+                  <div>
+                    {formError}
+                    {formErrorList.length > 0 && (
+                      <ul className="mt-2 list-disc pl-5">
+                        {formErrorList.map((message) => (
+                          <li key={message}>{message}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -979,164 +873,702 @@ export default function VehicleRegistration() {
                 </p>
               )}
 
-              <form
-                noValidate
-                aria-busy={isBusy}
-                onSubmit={handleSubmit(saveVehicle)}
-              >
-                <fieldset
-                  disabled={isBusy}
-                  className="m-0 min-w-0 space-y-7 border-0 p-0"
-                >
-                  {SECTIONS.map((section) => (
-                    <section key={section.title}>
+              <FormProvider {...methods}>
+                <form noValidate aria-busy={isBusy} onSubmit={submitForm}>
+                  <fieldset
+                    disabled={isBusy}
+                    className="m-0 min-w-0 space-y-7 border-0 p-0"
+                  >
+                    <section>
                       <div className="form-section-heading mb-4">
-                        <h2>{section.title}</h2>
-                        <p>{section.description}</p>
+                        <h2>Vehicle identity</h2>
+                        <p>Registration and basic vehicle details.</p>
                       </div>
-
                       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                        {section.fields.map(renderField)}
+                        <div className="sm:col-span-2">
+                          <label
+                            htmlFor="vehicle_number_plate"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Vehicle Number Plate
+                          </label>
+                          <Input
+                            id="vehicle_number_plate"
+                            type="text"
+                            maxLength={50}
+                            placeholder="e.g. CAB-1234"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.number_plate}
+                            {...register("number_plate", {
+                              required: "Vehicle Number Plate is required.",
+                              maxLength: {
+                                value: 50,
+                                message: "Maximum 50 characters.",
+                              },
+                              validate: (value) =>
+                                String(value).trim().length > 0 ||
+                                "Vehicle Number Plate cannot contain only spaces.",
+                            })}
+                          />
+                          <FieldError errors={errors} name="number_plate" />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="vehicle_category"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Category
+                          </label>
+
+                          <Select2
+                            name="category"
+                            endpoint="/vehciel_category_filter"
+                            placeholder="Select category..."
+                            disabled={isBusy}
+                            rules={{ required: "Please select a category." }}
+                          />
+
+                          <FieldError errors={errors} name="category" />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="brand"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Brand
+                          </label>
+                          <Select2
+                            name="brand"
+                            endpoint="/brand_filter"
+                            placeholder="Select brand..."
+                            disabled={isBusy}
+                            rules={{ required: "Please select a brand." }}
+                          />
+                          <FieldError errors={errors} name="brand" />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="vehicle_model"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Model
+                          </label>
+
+                          <Select2
+                            name="model"
+                            endpoint="/model_filter"
+                            placeholder="Select model..."
+                            disabled={isBusy}
+                            rules={{ required: "Please select a model." }}
+                          />
+
+                          <FieldError errors={errors} name="model" />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="vehicle_manufacture_year"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Manufacture Year
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                              Optional
+                            </span>
+                          </label>
+                          <Input
+                            id="vehicle_manufacture_year"
+                            type="number"
+                            min={1886}
+                            max={maxYear}
+                            step="1"
+                            placeholder="Enter manufacture year"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.manufacture_year}
+                            {...register("manufacture_year", {
+                              validate: (value) => {
+                                if (value === "") return true;
+                                const number = Number(value);
+                                if (!Number.isFinite(number))
+                                  return "Enter a valid number.";
+                                if (!Number.isInteger(number))
+                                  return "Enter a whole number.";
+                                if (number < 1886)
+                                  return "Minimum value is 1886.";
+                                if (number > maxYear)
+                                  return `Maximum value is ${maxYear}.`;
+                                return true;
+                              },
+                            })}
+                          />
+                          <FieldError errors={errors} name="manufacture_year" />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="vehicle_color"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Color
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                              Optional
+                            </span>
+                          </label>
+                          <Input
+                            id="vehicle_color"
+                            type="text"
+                            maxLength={50}
+                            placeholder="e.g. White"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.color}
+                            {...register("color", {
+                              maxLength: {
+                                value: 50,
+                                message: "Maximum 50 characters.",
+                              },
+                            })}
+                          />
+                          <FieldError errors={errors} name="color" />
+                        </div>
                       </div>
                     </section>
-                  ))}
-
-                  <section>
-                    <div className="form-section-heading mb-4">
-                      <h2>Vehicle features</h2>
-                      <p>Select the features available in this vehicle.</p>
-                    </div>
-
-                    {options.features.length ? (
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        {options.features.map((feature) => (
-                          <label
-                            key={feature.ID}
-                            className="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-card p-3 text-sm"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedFeatures.includes(
-                                String(feature.ID),
-                              )}
-                              onChange={() => toggleFeature(feature.ID)}
-                              className="h-4 w-4 accent-primary"
-                            />
-                            <span>{feature.feature_name}</span>
-                          </label>
-                        ))}
+                    <section>
+                      <div className="form-section-heading mb-4">
+                        <h2>Specifications</h2>
+                        <p>Technical information and capacity.</p>
                       </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        No vehicle features found. You can save without
-                        features.
-                      </p>
-                    )}
-
-                    <FieldError errors={errors} name="features" />
-                  </section>
-
-                  {/* IMAGE FUNCTIONALITY: saved and newly selected photos */}
-                  <section>
-                    <div className="form-section-heading mb-4">
-                      <h2>Vehicle images</h2>
-                      <p>
-                        Up to 10 photos. JPG, PNG or WebP, maximum 2 MB each.
-                      </p>
-                    </div>
-
-                    <label
-                      htmlFor="registered_vehicle_images"
-                      className="mb-2 block text-sm font-semibold"
-                    >
-                      Upload photographs
-                    </label>
-
-                    <input
-                      ref={fileInputRef}
-                      id="registered_vehicle_images"
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      multiple
-                      onChange={handleImageChange}
-                      aria-invalid={!!errors.images}
-                      className="block w-full rounded-lg border border-border bg-card text-sm text-muted-foreground file:mr-3 file:cursor-pointer file:border-0 file:bg-primary file:px-4 file:py-3 file:font-medium file:text-primary-foreground"
-                    />
-
-                    <FieldError errors={errors} name="images" />
-
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {keptImageCount}/{MAX_IMAGES} photos selected. Changes are
-                      applied when you save.
-                    </p>
-
-                    {(savedImages.length > 0 || newImages.length > 0) && (
-                      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                        {savedImages.map((image) => {
-                          const removed = removedImageIds.includes(
-                            String(image.ID),
-                          );
-
-                          return (
-                            <div
-                              key={`saved-${image.ID}`}
-                              className="overflow-hidden rounded-xl border border-border bg-card"
-                            >
-                              <img
-                                src={image.url}
-                                alt="Saved vehicle photograph"
-                                className={`h-28 w-full object-cover ${
-                                  removed ? "opacity-30" : ""
-                                }`}
-                              />
-
-                              <div className="space-y-2 p-2">
-                                <p className="text-xs text-muted-foreground">
-                                  {removed
-                                    ? "Will be removed on save"
-                                    : "Saved image"}
-                                </p>
-
-                                <button
-                                  type="button"
-                                  onClick={() => toggleSavedImage(image.ID)}
-                                  className={`inline-flex items-center gap-1 text-xs font-semibold ${
-                                    removed
-                                      ? "text-primary"
-                                      : "text-destructive"
-                                  }`}
-                                >
-                                  {removed ? (
-                                    <Undo2 size={13} aria-hidden="true" />
-                                  ) : (
-                                    <Trash2 size={13} aria-hidden="true" />
-                                  )}
-                                  {removed ? "Restore" : "Remove"}
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-
-                        {newImages.map((item) => (
-                          <NewImagePreview
-                            key={item.key}
-                            file={item.file}
-                            onRemove={() => {
-                              setNewImages((current) =>
-                                current.filter(
-                                  (entry) => entry.key !== item.key,
-                                ),
-                              );
-                              clearErrors("images");
+                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                        <div>
+                          <label
+                            htmlFor="fuel_type"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Fuel Type
+                          </label>
+                          <Select2
+                            name="fuel_type"
+                            endpoint="/fuel_type_filter"
+                            placeholder="Select fuel type..."
+                            disabled={isBusy}
+                            rules={{ required: "Please select a fuel type." }}
+                          />
+                          <FieldError errors={errors} name="fuel_type" />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="transmission"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Transmission
+                          </label>
+                          <Select2
+                            name="transmission"
+                            endpoint="/transmission_type_filter"
+                            placeholder="Select transmission..."
+                            disabled={isBusy}
+                            rules={{
+                              required: "Please select a transmission.",
                             }}
                           />
-                        ))}
+                          <FieldError errors={errors} name="transmission" />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="vehicle_engine_number"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Engine Number
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                              Optional
+                            </span>
+                          </label>
+                          <Input
+                            id="vehicle_engine_number"
+                            type="text"
+                            maxLength={100}
+                            placeholder="Enter engine number"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.engine_number}
+                            {...register("engine_number", {
+                              maxLength: {
+                                value: 100,
+                                message: "Maximum 100 characters.",
+                              },
+                            })}
+                          />
+                          <FieldError errors={errors} name="engine_number" />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="vehicle_chassis_number"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Chassis Number
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                              Optional
+                            </span>
+                          </label>
+                          <Input
+                            id="vehicle_chassis_number"
+                            type="text"
+                            maxLength={100}
+                            placeholder="Enter chassis number"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.chassis_number}
+                            {...register("chassis_number", {
+                              maxLength: {
+                                value: 100,
+                                message: "Maximum 100 characters.",
+                              },
+                            })}
+                          />
+                          <FieldError errors={errors} name="chassis_number" />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="vehicle_mileage"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Mileage (km)
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                              Optional
+                            </span>
+                          </label>
+                          <Input
+                            id="vehicle_mileage"
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            placeholder="Enter mileage (km)"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.mileage}
+                            {...register("mileage", {
+                              validate: (value) => {
+                                if (value === "") return true;
+                                const number = Number(value);
+                                if (!Number.isFinite(number))
+                                  return "Enter a valid number.";
+                                if (number < 0) return "Minimum value is 0.";
+                                return true;
+                              },
+                            })}
+                          />
+                          <FieldError errors={errors} name="mileage" />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="vehicle_seating_capacity"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Seating Capacity
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                              Optional
+                            </span>
+                          </label>
+                          <Input
+                            id="vehicle_seating_capacity"
+                            type="number"
+                            min={1}
+                            max={200}
+                            step="1"
+                            placeholder="Enter seating capacity"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.seating_capacity}
+                            {...register("seating_capacity", {
+                              validate: (value) => {
+                                if (value === "") return true;
+                                const number = Number(value);
+                                if (!Number.isFinite(number))
+                                  return "Enter a valid number.";
+                                if (!Number.isInteger(number))
+                                  return "Enter a whole number.";
+                                if (number < 1) return "Minimum value is 1.";
+                                if (number > 200)
+                                  return "Maximum value is 200.";
+                                return true;
+                              },
+                            })}
+                          />
+                          <FieldError errors={errors} name="seating_capacity" />
+                        </div>
                       </div>
-                    )}
-                  </section>
-                </fieldset>
-              </form>
+                    </section>
+                    <section>
+                      <div className="form-section-heading mb-4">
+                        <h2>Purchase &amp; pricing</h2>
+                        <p>Ownership details and rental rates.</p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                        <div>
+                          <label
+                            htmlFor="vehicle_purchase_date"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Purchase Date
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                              Optional
+                            </span>
+                          </label>
+                          <Input
+                            id="vehicle_purchase_date"
+                            type="date"
+                            placeholder="Enter purchase date"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.purchase_date}
+                            {...register("purchase_date", {})}
+                          />
+                          <FieldError errors={errors} name="purchase_date" />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="vehicle_purchase_price"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Purchase Price
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                              Optional
+                            </span>
+                          </label>
+                          <Input
+                            id="vehicle_purchase_price"
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            placeholder="Enter purchase price"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.purchase_price}
+                            {...register("purchase_price", {
+                              validate: (value) => {
+                                if (value === "") return true;
+                                const number = Number(value);
+                                if (!Number.isFinite(number))
+                                  return "Enter a valid number.";
+                                if (number < 0) return "Minimum value is 0.";
+                                return true;
+                              },
+                            })}
+                          />
+                          <FieldError errors={errors} name="purchase_price" />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="vehicle_daily_rental_rate"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Daily Rental Rate
+                          </label>
+                          <Input
+                            id="vehicle_daily_rental_rate"
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            placeholder="Enter daily rental rate"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.daily_rental_rate}
+                            {...register("daily_rental_rate", {
+                              required: "Daily Rental Rate is required.",
+                              validate: (value) => {
+                                if (value === "") return true;
+                                const number = Number(value);
+                                if (!Number.isFinite(number))
+                                  return "Enter a valid number.";
+                                if (number < 0) return "Minimum value is 0.";
+                                return true;
+                              },
+                            })}
+                          />
+                          <FieldError
+                            errors={errors}
+                            name="daily_rental_rate"
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="vehicle_weekly_rental_rate"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Weekly Rental Rate
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                              Optional
+                            </span>
+                          </label>
+                          <Input
+                            id="vehicle_weekly_rental_rate"
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            placeholder="Enter weekly rental rate"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.weekly_rental_rate}
+                            {...register("weekly_rental_rate", {
+                              validate: (value) => {
+                                if (value === "") return true;
+                                const number = Number(value);
+                                if (!Number.isFinite(number))
+                                  return "Enter a valid number.";
+                                if (number < 0) return "Minimum value is 0.";
+                                return true;
+                              },
+                            })}
+                          />
+                          <FieldError
+                            errors={errors}
+                            name="weekly_rental_rate"
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="vehicle_monthly_rental_rate"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Monthly Rental Rate
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                              Optional
+                            </span>
+                          </label>
+                          <Input
+                            id="vehicle_monthly_rental_rate"
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            placeholder="Enter monthly rental rate"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.monthly_rental_rate}
+                            {...register("monthly_rental_rate", {
+                              validate: (value) => {
+                                if (value === "") return true;
+                                const number = Number(value);
+                                if (!Number.isFinite(number))
+                                  return "Enter a valid number.";
+                                if (number < 0) return "Minimum value is 0.";
+                                return true;
+                              },
+                            })}
+                          />
+                          <FieldError
+                            errors={errors}
+                            name="monthly_rental_rate"
+                          />
+                        </div>
+                      </div>
+                    </section>
+                    <section>
+                      <div className="form-section-heading mb-4">
+                        <h2>Compliance &amp; availability</h2>
+                        <p>Key dates and operating status.</p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                        <div>
+                          <label
+                            htmlFor="vehicle_insurance_expiry_date"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Insurance Expiry Date
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                              Optional
+                            </span>
+                          </label>
+                          <Input
+                            id="vehicle_insurance_expiry_date"
+                            type="date"
+                            placeholder="Enter insurance expiry date"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.insurance_expiry_date}
+                            {...register("insurance_expiry_date", {})}
+                          />
+                          <FieldError
+                            errors={errors}
+                            name="insurance_expiry_date"
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="vehicle_registration_expiry_date"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Registration Expiry Date
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                              Optional
+                            </span>
+                          </label>
+                          <Input
+                            id="vehicle_registration_expiry_date"
+                            type="date"
+                            placeholder="Enter registration expiry date"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.registration_expiry_date}
+                            {...register("registration_expiry_date", {})}
+                          />
+                          <FieldError
+                            errors={errors}
+                            name="registration_expiry_date"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label
+                            htmlFor="vehicle_vehicle_status"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Vehicle Status
+                          </label>
+                          <NativeSelect
+                            id="vehicle_vehicle_status"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.vehicle_status}
+                            disabled={isBusy}
+                            {...register("vehicle_status", {
+                              required: "Vehicle Status is required.",
+                            })}
+                          >
+                            <option value="">Select vehicle status</option>
+                            <option value="Available">Available</option>
+                            <option value="Rented">Rented</option>
+                            <option value="Under Maintenance">
+                              Under Maintenance
+                            </option>
+                            <option value="Out of Service">
+                              Out of Service
+                            </option>
+                          </NativeSelect>
+                          <FieldError errors={errors} name="vehicle_status" />
+                        </div>
+                      </div>
+                    </section>
+
+                    <section>
+                      <div className="form-section-heading mb-4">
+                        <h2>Vehicle features</h2>
+                        <p>Select the features available in this vehicle.</p>
+                      </div>
+
+                      {options.features.length ? (
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          {options.features.map((feature) => (
+                            <label
+                              key={feature.ID}
+                              className="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-card p-3 text-sm"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedFeatures.includes(
+                                  String(feature.ID),
+                                )}
+                                onChange={() => toggleFeature(feature.ID)}
+                                className="h-4 w-4 accent-primary"
+                              />
+                              <span>{feature.feature_name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          No vehicle features found. You can save without
+                          features.
+                        </p>
+                      )}
+
+                      <FieldError errors={errors} name="features" />
+                    </section>
+
+                    {/* IMAGE FUNCTIONALITY: saved and newly selected photos */}
+                    <section>
+                      <div className="form-section-heading mb-4">
+                        <h2>Vehicle images</h2>
+                        <p>
+                          Up to 10 photos. JPG, PNG or WebP, maximum 2 MB each.
+                        </p>
+                      </div>
+
+                      <label
+                        htmlFor="registered_vehicle_images"
+                        className="mb-2 block text-sm font-semibold"
+                      >
+                        Upload photographs
+                      </label>
+
+                      <input
+                        ref={fileInputRef}
+                        id="registered_vehicle_images"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        multiple
+                        onChange={handleImageChange}
+                        aria-invalid={!!errors.images}
+                        className="block w-full rounded-lg border border-border bg-card text-sm text-muted-foreground file:mr-3 file:cursor-pointer file:border-0 file:bg-primary file:px-4 file:py-3 file:font-medium file:text-primary-foreground"
+                      />
+
+                      <FieldError errors={errors} name="images" />
+
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {keptImageCount}/{MAX_IMAGES} photos selected. Changes
+                        are applied when you save.
+                      </p>
+
+                      {(savedImages.length > 0 || newImages.length > 0) && (
+                        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                          {savedImages.map((image) => {
+                            const removed = removedImageIds.includes(
+                              String(image.ID),
+                            );
+
+                            return (
+                              <div
+                                key={`saved-${image.ID}`}
+                                className="overflow-hidden rounded-xl border border-border bg-card"
+                              >
+                                <img
+                                  src={image.url}
+                                  alt="Saved vehicle photograph"
+                                  className={`h-28 w-full object-cover ${
+                                    removed ? "opacity-30" : ""
+                                  }`}
+                                />
+
+                                <div className="space-y-2 p-2">
+                                  <p className="text-xs text-muted-foreground">
+                                    {removed
+                                      ? "Will be removed on save"
+                                      : "Saved image"}
+                                  </p>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleSavedImage(image.ID)}
+                                    className={`inline-flex items-center gap-1 text-xs font-semibold ${
+                                      removed
+                                        ? "text-primary"
+                                        : "text-destructive"
+                                    }`}
+                                  >
+                                    {removed ? (
+                                      <Undo2 size={13} aria-hidden="true" />
+                                    ) : (
+                                      <Trash2 size={13} aria-hidden="true" />
+                                    )}
+                                    {removed ? "Restore" : "Remove"}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {newImages.map((item) => (
+                            <NewImagePreview
+                              key={item.key}
+                              file={item.file}
+                              onRemove={() => {
+                                setNewImages((current) =>
+                                  current.filter(
+                                    (entry) => entry.key !== item.key,
+                                  ),
+                                );
+                                clearErrors("images");
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  </fieldset>
+                </form>
+              </FormProvider>
             </CustomDrawer>
 
             <div className="xl:col-span-12">

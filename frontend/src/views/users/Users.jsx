@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { FormProvider, useForm } from "react-hook-form";
 import { TriangleAlert, UserRoundCog, Eye, EyeOff } from "lucide-react";
 import { TabulatorFull as Tabulator } from "tabulator-tables";
 
@@ -12,6 +12,7 @@ import PageHeader from "@/components/PageHeader";
 import axiosClient from "../../axios-client";
 import CarLoader from "../../components/CarLoader";
 import CustomDrawer from "../../components/Drawer";
+import Select2 from "../../components/Select2";
 
 import "tabulator-tables/dist/css/tabulator.min.css";
 import { toast } from "sonner";
@@ -52,6 +53,9 @@ export default function Users() {
   const requestBusy = useRef(false);
 
   // ================= REACT HOOK FORM =================
+  const methods = useForm({
+    defaultValues: DEFAULT_VALUES,
+  });
 
   const {
     register,
@@ -60,9 +64,7 @@ export default function Users() {
     clearErrors,
     setError,
     formState: { errors },
-  } = useForm({
-    defaultValues: DEFAULT_VALUES,
-  });
+  } = methods;
 
   // ================= LOAD USER LIST =================
 
@@ -446,98 +448,105 @@ export default function Users() {
                 </p>
               )}
 
-              <form
-                onSubmit={handleSubmit(saveUser)}
-                aria-busy={isBusy}
-                noValidate
-              >
-                <fieldset
-                  disabled={isBusy}
-                  className="m-0 min-w-0 space-y-6 border-0 p-0"
+              <FormProvider {...methods}>
+                <form
+                  onSubmit={handleSubmit(saveUser)}
+                  aria-busy={isBusy}
+                  noValidate
                 >
-                  <FormSection
-                    title="Account details"
-                    description="Identify the person and their account email."
+                  <fieldset
+                    disabled={isBusy}
+                    className="m-0 min-w-0 space-y-6 border-0 p-0"
                   >
-                    <div className="space-y-5">
-                      {/* Username */}
-                      <div>
-                        <label
-                          htmlFor="username"
-                          className="mb-2 block text-sm font-semibold"
-                        >
-                          Username
-                        </label>
-
-                        <Input
-                          id="username"
-                          type="text"
-                          placeholder="Enter username"
-                          autoComplete="username"
-                          className="custom-input-sm"
-                          aria-invalid={!!errors.username}
-                          {...register("username", {
-                            required: "Username is required",
-                            maxLength: {
-                              value: 100,
-                              message: "Maximum 100 characters",
-                            },
-                          })}
-                        />
-
-                        <FieldError errors={errors} name="username" />
-                      </div>
-
-                      {/* Email */}
-                      <div>
-                        <label
-                          htmlFor="email"
-                          className="mb-2 block text-sm font-semibold"
-                        >
-                          Email Address
-                        </label>
-
-                        <Input
-                          id="email"
-                          type="email"
-                          placeholder="example@email.com"
-                          autoComplete="email"
-                          className="custom-input-sm"
-                          aria-invalid={!!errors.email}
-                          {...register("email", {
-                            required: "Email is required",
-                            maxLength: {
-                              value: 150,
-                              message: "Maximum 150 characters",
-                            },
-                            pattern: {
-                              value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                              message: "Enter a valid email address",
-                            },
-                          })}
-                        />
-
-                        <FieldError errors={errors} name="email" />
-                      </div>
-                    </div>
-                  </FormSection>
-
-                  <FormSection
-                    title="Access & security"
-                    description="Choose account access and password details."
-                  >
-                    <div className="space-y-5">
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        {/* Employee */}
+                    <FormSection
+                      title="Account details"
+                      description="Identify the person and their account email."
+                    >
+                      <div className="space-y-5">
+                        {/* Username */}
                         <div>
                           <label
-                            htmlFor="emp_id"
+                            htmlFor="username"
                             className="mb-2 block text-sm font-semibold"
                           >
-                            Employee
+                            Username
                           </label>
 
-                          <NativeSelect
+                          <Input
+                            id="username"
+                            type="text"
+                            placeholder="Enter username"
+                            autoComplete="username"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.username}
+                            {...register("username", {
+                              required: "Username is required",
+                              maxLength: {
+                                value: 100,
+                                message: "Maximum 100 characters",
+                              },
+                            })}
+                          />
+
+                          <FieldError errors={errors} name="username" />
+                        </div>
+
+                        {/* Email */}
+                        <div>
+                          <label
+                            htmlFor="email"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Email Address
+                          </label>
+
+                          <Input
+                            id="email"
+                            type="email"
+                            placeholder="example@email.com"
+                            autoComplete="email"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.email}
+                            {...register("email", {
+                              required: "Email is required",
+                              maxLength: {
+                                value: 150,
+                                message: "Maximum 150 characters",
+                              },
+                              pattern: {
+                                value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                                message: "Enter a valid email address",
+                              },
+                            })}
+                          />
+
+                          <FieldError errors={errors} name="email" />
+                        </div>
+                      </div>
+                    </FormSection>
+
+                    <FormSection
+                      title="Access & security"
+                      description="Choose account access and password details."
+                    >
+                      <div className="space-y-5">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          {/* Employee */}
+                          <div>
+                            <label
+                              htmlFor="emp_id"
+                              className="mb-2 block text-sm font-semibold"
+                            >
+                              Employee
+                            </label>
+
+                            <Select2
+                              name="emp_id"
+                              endpoint="/staff_filter"
+                              rules={{ required: "Please select an employee." }}
+                            />
+
+                            {/* <NativeSelect
                             id="emp_id"
                             className="custom-input-sm"
                             aria-invalid={!!errors.emp_id}
@@ -545,159 +554,168 @@ export default function Users() {
                           >
                             <option value="">Select employee</option>
                             <option value="1">Ahamed Saadik</option>
-                          </NativeSelect>
+                          </NativeSelect> */}
 
-                          <FieldError errors={errors} name="emp_id" />
-                        </div>
-
-                        {/* Role */}
-                        <div>
-                          <label
-                            htmlFor="role_id"
-                            className="mb-2 block text-sm font-semibold"
-                          >
-                            Role
-                          </label>
-
-                          <NativeSelect
-                            id="role_id"
-                            className="custom-input-sm"
-                            aria-invalid={!!errors.role_id}
-                            {...register("role_id", {
-                              required: "Role is required",
-                            })}
-                          >
-                            <option value="">Select role</option>
-                            <option value="1">Software Engineer</option>
-                          </NativeSelect>
-
-                          <FieldError errors={errors} name="role_id" />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        {/* Password */}
-                        <div>
-                          <label
-                            htmlFor="password"
-                            className="mb-2 block text-sm font-semibold"
-                          >
-                            {isEditing ? "New Password" : "Password"}
-                          </label>
-
-                          <div className="relative">
-                            <Input
-                              id="password"
-                              type={showPassword ? "text" : "password"}
-                              autoComplete="new-password"
-                              placeholder={
-                                isEditing
-                                  ? "Leave blank to keep current"
-                                  : "Enter password"
-                              }
-                              className="custom-input-sm pr-11"
-                              aria-invalid={!!errors.password}
-                              {...register("password", {
-                                required: isEditing
-                                  ? false
-                                  : "Password is required",
-                                minLength: {
-                                  value: 8,
-                                  message: "Use at least 8 characters",
-                                },
-                                deps: ["password_confirmation"],
-                              })}
-                            />
-
-                            <button
-                              type="button"
-                              disabled={isBusy}
-                              onClick={() =>
-                                setShowPassword((visible) => !visible)
-                              }
-                              aria-label={
-                                showPassword ? "Hide password" : "Show password"
-                              }
-                              aria-controls="password"
-                              aria-pressed={showPassword}
-                              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-md text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-                            >
-                              {showPassword ? (
-                                <EyeOff size={18} aria-hidden="true" />
-                              ) : (
-                                <Eye size={18} aria-hidden="true" />
-                              )}
-                            </button>
+                            <FieldError errors={errors} name="emp_id" />
                           </div>
 
-                          <FieldError errors={errors} name="password" />
-                        </div>
+                          {/* Role */}
+                          <div>
+                            <label
+                              htmlFor="role_id"
+                              className="mb-2 block text-sm font-semibold"
+                            >
+                              Role
+                            </label>
 
-                        {/* Confirm password */}
-                        <div>
-                          <label
-                            htmlFor="password_confirmation"
-                            className="mb-2 block text-sm font-semibold"
-                          >
-                            Confirm Password
-                          </label>
-
-                          <div className="relative">
-                            <Input
-                              id="password_confirmation"
-                              type={showConfirmPassword ? "text" : "password"}
-                              autoComplete="new-password"
-                              placeholder="Confirm password"
-                              className="custom-input-sm pr-11"
-                              aria-invalid={!!errors.password_confirmation}
-                              {...register("password_confirmation", {
-                                validate: (value, values) =>
-                                  value === values.password ||
-                                  "Passwords do not match",
-                              })}
+                            <Select2
+                              name="role_id"
+                              endpoint="/role_filter"
+                              rules={{ required: "Please select a role." }}
                             />
 
-                            <button
-                              type="button"
-                              disabled={isBusy}
-                              onClick={() =>
-                                setShowConfirmPassword((visible) => !visible)
-                              }
-                              aria-label={
-                                showConfirmPassword
-                                  ? "Hide confirmed password"
-                                  : "Show confirmed password"
-                              }
-                              aria-controls="password_confirmation"
-                              aria-pressed={showConfirmPassword}
-                              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-md text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                            {/* <NativeSelect
+                              id="role_id"
+                              className="custom-input-sm"
+                              aria-invalid={!!errors.role_id}
+                              {...register("role_id", {
+                                required: "Role is required",
+                              })}
                             >
-                              {showConfirmPassword ? (
-                                <EyeOff size={18} aria-hidden="true" />
-                              ) : (
-                                <Eye size={18} aria-hidden="true" />
-                              )}
-                            </button>
+                              <option value="">Select role</option>
+                              <option value="1">Software Engineer</option>
+                            </NativeSelect> */}
+
+                            <FieldError errors={errors} name="role_id" />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          {/* Password */}
+                          <div>
+                            <label
+                              htmlFor="password"
+                              className="mb-2 block text-sm font-semibold"
+                            >
+                              {isEditing ? "New Password" : "Password"}
+                            </label>
+
+                            <div className="relative">
+                              <Input
+                                id="password"
+                                type={showPassword ? "text" : "password"}
+                                autoComplete="new-password"
+                                placeholder={
+                                  isEditing
+                                    ? "Leave blank to keep current"
+                                    : "Enter password"
+                                }
+                                className="custom-input-sm pr-11"
+                                aria-invalid={!!errors.password}
+                                {...register("password", {
+                                  required: isEditing
+                                    ? false
+                                    : "Password is required",
+                                  minLength: {
+                                    value: 8,
+                                    message: "Use at least 8 characters",
+                                  },
+                                  deps: ["password_confirmation"],
+                                })}
+                              />
+
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() =>
+                                  setShowPassword((visible) => !visible)
+                                }
+                                aria-label={
+                                  showPassword
+                                    ? "Hide password"
+                                    : "Show password"
+                                }
+                                aria-controls="password"
+                                aria-pressed={showPassword}
+                                className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-md text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                              >
+                                {showPassword ? (
+                                  <EyeOff size={18} aria-hidden="true" />
+                                ) : (
+                                  <Eye size={18} aria-hidden="true" />
+                                )}
+                              </button>
+                            </div>
+
+                            <FieldError errors={errors} name="password" />
                           </div>
 
-                          <FieldError
-                            errors={errors}
-                            name="password_confirmation"
-                          />
-                        </div>
-                      </div>
+                          {/* Confirm password */}
+                          <div>
+                            <label
+                              htmlFor="password_confirmation"
+                              className="mb-2 block text-sm font-semibold"
+                            >
+                              Confirm Password
+                            </label>
 
-                      {isEditing && (
-                        <p className="text-xs text-muted-foreground">
-                          Leave both password fields blank to keep the current
-                          password. Enter and confirm a new password only when
-                          you want to change it.
-                        </p>
-                      )}
-                    </div>
-                  </FormSection>
-                </fieldset>
-              </form>
+                            <div className="relative">
+                              <Input
+                                id="password_confirmation"
+                                type={showConfirmPassword ? "text" : "password"}
+                                autoComplete="new-password"
+                                placeholder="Confirm password"
+                                className="custom-input-sm pr-11"
+                                aria-invalid={!!errors.password_confirmation}
+                                {...register("password_confirmation", {
+                                  validate: (value, values) =>
+                                    value === values.password ||
+                                    "Passwords do not match",
+                                })}
+                              />
+
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() =>
+                                  setShowConfirmPassword((visible) => !visible)
+                                }
+                                aria-label={
+                                  showConfirmPassword
+                                    ? "Hide confirmed password"
+                                    : "Show confirmed password"
+                                }
+                                aria-controls="password_confirmation"
+                                aria-pressed={showConfirmPassword}
+                                className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-md text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                              >
+                                {showConfirmPassword ? (
+                                  <EyeOff size={18} aria-hidden="true" />
+                                ) : (
+                                  <Eye size={18} aria-hidden="true" />
+                                )}
+                              </button>
+                            </div>
+
+                            <FieldError
+                              errors={errors}
+                              name="password_confirmation"
+                            />
+                          </div>
+                        </div>
+
+                        {isEditing && (
+                          <p className="text-xs text-muted-foreground">
+                            Leave both password fields blank to keep the current
+                            password. Enter and confirm a new password only when
+                            you want to change it.
+                          </p>
+                        )}
+                      </div>
+                    </FormSection>
+                  </fieldset>
+                </form>
+              </FormProvider>
             </CustomDrawer>
 
             {/* User table */}

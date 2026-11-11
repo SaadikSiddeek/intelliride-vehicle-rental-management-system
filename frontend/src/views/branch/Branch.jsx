@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { FormProvider, useForm } from "react-hook-form";
 import { TriangleAlert, Plus } from "lucide-react";
 import { TabulatorFull as Tabulator } from "tabulator-tables";
 
@@ -11,6 +11,7 @@ import PageHeader from "@/components/PageHeader";
 import CarLoader from "@/components/CarLoader";
 import CustomDrawer from "@/components/Drawer";
 import axiosClient from "@/axios-client";
+import Select2 from "../../components/Select2";
 
 import "tabulator-tables/dist/css/tabulator.min.css";
 
@@ -58,6 +59,11 @@ export default function Branch() {
   const isBusy = saving || formLoading;
 
   // ================= REACT HOOK FORM =================
+
+  const methods = useForm({
+    defaultValues: EMPTY_FORM,
+  });
+
   const {
     register,
     handleSubmit,
@@ -65,7 +71,7 @@ export default function Branch() {
     clearErrors,
     setError,
     formState: { errors },
-  } = useForm({ defaultValues: EMPTY_FORM });
+  } = methods;
 
   // ================= LOAD TABLE =================
   const getBranches = useCallback(async () => {
@@ -441,159 +447,155 @@ export default function Branch() {
                 </p>
               )}
 
-              <form
-                noValidate
-                aria-busy={isBusy}
-                onSubmit={handleSubmit(saveBranch)}
-              >
-                <fieldset
-                  disabled={isBusy}
-                  className="m-0 min-w-0 space-y-6 border-0 p-0"
+              <FormProvider {...methods}>
+                <form
+                  noValidate
+                  aria-busy={isBusy}
+                  onSubmit={handleSubmit(saveBranch)}
                 >
-                  <FormSection
-                    title="Branch information"
-                    description="Basic company branch and contact details."
+                  <fieldset
+                    disabled={isBusy}
+                    className="m-0 min-w-0 space-y-6 border-0 p-0"
                   >
-                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                      {BRANCH_FIELDS.slice(0, 2).map((item) => (
-                        <div key={item.name}>
+                    <FormSection
+                      title="Branch information"
+                      description="Basic company branch and contact details."
+                    >
+                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                        {BRANCH_FIELDS.slice(0, 2).map((item) => (
+                          <div key={item.name}>
+                            <label
+                              htmlFor={item.name}
+                              className="mb-2 block text-sm font-semibold"
+                            >
+                              {item.label}
+                            </label>
+
+                            <Input
+                              id={item.name}
+                              type={item.type ?? "text"}
+                              placeholder={`Enter ${item.label.toLowerCase()}`}
+                              maxLength={item.maxLength}
+                              className={`custom-input-sm ${
+                                errors[item.name] ? "border-red-400" : ""
+                              }`}
+                              aria-invalid={!!errors[item.name]}
+                              {...register(item.name, {
+                                validate: (value) =>
+                                  !!value.trim() || `${item.label} is required`,
+                                maxLength: {
+                                  value: item.maxLength,
+                                  message: `Maximum ${item.maxLength} characters`,
+                                },
+                              })}
+                            />
+                            <FieldError errors={errors} name={item.name} />
+                          </div>
+                        ))}
+
+                        <div className="sm:col-span-2">
                           <label
-                            htmlFor={item.name}
+                            htmlFor="address"
                             className="mb-2 block text-sm font-semibold"
                           >
-                            {item.label}
+                            Address
                           </label>
-
-                          <Input
-                            id={item.name}
-                            type={item.type ?? "text"}
-                            placeholder={`Enter ${item.label.toLowerCase()}`}
-                            maxLength={item.maxLength}
-                            className={`custom-input-sm ${
-                              errors[item.name] ? "border-red-400" : ""
+                          <Textarea
+                            id="address"
+                            rows={3}
+                            placeholder="Enter branch address"
+                            className={`custom-input-sm resize-none ${
+                              errors.address ? "border-red-400" : ""
                             }`}
-                            aria-invalid={!!errors[item.name]}
-                            {...register(item.name, {
-                              validate: (value) =>
-                                !!value.trim() || `${item.label} is required`,
+                            aria-invalid={!!errors.address}
+                            {...register("address", {
                               maxLength: {
-                                value: item.maxLength,
-                                message: `Maximum ${item.maxLength} characters`,
+                                value: 5000,
+                                message: "Maximum 5000 characters",
                               },
                             })}
                           />
-                          <FieldError errors={errors} name={item.name} />
+                          <FieldError errors={errors} name="address" />
                         </div>
-                      ))}
-
-                      <div className="sm:col-span-2">
-                        <label
-                          htmlFor="address"
-                          className="mb-2 block text-sm font-semibold"
-                        >
-                          Address
-                        </label>
-                        <Textarea
-                          id="address"
-                          rows={3}
-                          placeholder="Enter branch address"
-                          className={`custom-input-sm resize-none ${
-                            errors.address ? "border-red-400" : ""
-                          }`}
-                          aria-invalid={!!errors.address}
-                          {...register("address", {
-                            maxLength: {
-                              value: 5000,
-                              message: "Maximum 5000 characters",
-                            },
-                          })}
-                        />
-                        <FieldError errors={errors} name="address" />
                       </div>
-                    </div>
-                  </FormSection>
+                    </FormSection>
 
-                  <FormSection
-                    title="Branch assignment"
-                    description="Manager assignment, contact number and status."
-                  >
-                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                      <div>
-                        <label
-                          htmlFor="manager_id"
-                          className="mb-2 block text-sm font-semibold"
-                        >
-                          Manager
-                        </label>
-                        <NativeSelect
-                          id="manager_id"
-                          className={`custom-input-sm ${
-                            errors.manager_id ? "border-red-400" : ""
-                          }`}
-                          aria-invalid={!!errors.manager_id}
-                          {...register("manager_id")}
-                        >
-                          <option value="">No manager assigned</option>
-                          {managers.map((person) => (
-                            <option key={person.id} value={String(person.id)}>
-                              {person.name}
-                            </option>
-                          ))}
-                        </NativeSelect>
-                        <FieldError errors={errors} name="manager_id" />
-                      </div>
+                    <FormSection
+                      title="Branch assignment"
+                      description="Manager assignment, contact number and status."
+                    >
+                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                        <div>
+                          <label
+                            htmlFor="manager_id"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Manager
+                          </label>
 
-                      <div>
-                        <label
-                          htmlFor="contact_number"
-                          className="mb-2 block text-sm font-semibold"
-                        >
-                          Contact Number
-                        </label>
-                        <Input
-                          id="contact_number"
-                          type="tel"
-                          maxLength={20}
-                          placeholder="Enter contact number"
-                          className={`custom-input-sm ${
-                            errors.contact_number ? "border-red-400" : ""
-                          }`}
-                          aria-invalid={!!errors.contact_number}
-                          {...register("contact_number", {
-                            maxLength: {
-                              value: 20,
-                              message: "Maximum 20 characters",
-                            },
-                          })}
-                        />
-                        <FieldError errors={errors} name="contact_number" />
-                      </div>
-
-                      <div className="flex items-center gap-3 pt-1 sm:col-span-2">
-                        <label
-                          htmlFor="status"
-                          className="text-sm font-semibold"
-                        >
-                          Active Status
-                        </label>
-
-                        <label className="relative inline-flex cursor-pointer items-center">
-                          <input
-                            id="status"
-                            type="checkbox"
-                            className="peer sr-only"
-                            {...register("status")}
+                          <Select2
+                            name="manager_id"
+                            endpoint="/staff_filter"
+                            placeholder="Select Manager..."
+                            disabled={isBusy}
+                            rules={{ required: "Please select a manager." }}
                           />
 
-                          <span className="h-6 w-11 rounded-full bg-secondary transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary" />
-                          <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-card transition-transform peer-checked:translate-x-5" />
-                        </label>
-                        <FieldError errors={errors} name="status" />
+                          <FieldError errors={errors} name="manager_id" />
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="contact_number"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Contact Number
+                          </label>
+                          <Input
+                            id="contact_number"
+                            type="tel"
+                            maxLength={20}
+                            placeholder="Enter contact number"
+                            className={`custom-input-sm ${
+                              errors.contact_number ? "border-red-400" : ""
+                            }`}
+                            aria-invalid={!!errors.contact_number}
+                            {...register("contact_number", {
+                              maxLength: {
+                                value: 20,
+                                message: "Maximum 20 characters",
+                              },
+                            })}
+                          />
+                          <FieldError errors={errors} name="contact_number" />
+                        </div>
+
+                        <div className="flex items-center gap-3 pt-1 sm:col-span-2">
+                          <label
+                            htmlFor="status"
+                            className="text-sm font-semibold"
+                          >
+                            Active Status
+                          </label>
+
+                          <label className="relative inline-flex cursor-pointer items-center">
+                            <input
+                              id="status"
+                              type="checkbox"
+                              className="peer sr-only"
+                              {...register("status")}
+                            />
+
+                            <span className="h-6 w-11 rounded-full bg-secondary transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary" />
+                            <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-card transition-transform peer-checked:translate-x-5" />
+                          </label>
+                          <FieldError errors={errors} name="status" />
+                        </div>
                       </div>
-                    </div>
-                  </FormSection>
-                </fieldset>
-              </form>
+                    </FormSection>
+                  </fieldset>
+                </form>
+              </FormProvider>
             </CustomDrawer>
 
             <div className="xl:col-span-12">

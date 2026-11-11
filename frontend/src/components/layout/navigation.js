@@ -16,6 +16,9 @@ import {
   Bot,
   MessageSquare,
   Settings2,
+  Contact,
+  ContactRound,
+  Package,
 } from "lucide-react";
 export const navigation = [
   {
@@ -30,6 +33,16 @@ export const navigation = [
       { label: "Users", to: "/user-management/manage", icon: Users },
       { label: "Staff", to: "/staff-management/manage", icon: UserRoundCog },
       { label: "Branches", to: "/branch-management/manage", icon: Building2 },
+      {
+        label: "Customers",
+        to: "/customer-management/manage",
+        icon: ContactRound,
+      },
+      {
+        label: "Rental Packages",
+        to: "/rental-package-management/manage",
+        icon: Package,
+      },
     ],
   },
   {

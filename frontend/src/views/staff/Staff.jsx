@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, FormProvider, useForm } from "react-hook-form";
 import { TriangleAlert, UserRoundPlus } from "lucide-react";
 import { TabulatorFull as Tabulator } from "tabulator-tables";
 import Flatpickr from "react-flatpickr";
@@ -12,6 +12,7 @@ import PageHeader from "@/components/PageHeader";
 import CarLoader from "@/components/CarLoader";
 import CustomDrawer from "@/components/Drawer";
 import axiosClient from "@/axios-client";
+import Select2 from "../../components/Select2";
 
 import "tabulator-tables/dist/css/tabulator.min.css";
 import "flatpickr/dist/flatpickr.min.css";
@@ -39,25 +40,6 @@ const DATE_OPTIONS = {
   allowInput: false,
   static: true,
 };
-
-// Replace these options with your actual reference data.
-const JOB_FIELDS = [
-  {
-    name: "branch",
-    label: "Branch",
-    options: [{ value: "1", label: "1" }],
-  },
-  {
-    name: "designation",
-    label: "Designation",
-    options: [{ value: "1", label: "1" }],
-  },
-  {
-    name: "department",
-    label: "Department",
-    options: [{ value: "1", label: "1" }],
-  },
-];
 
 const PERSONAL_FIELDS = [
   {
@@ -117,6 +99,10 @@ export default function Staff() {
 
   // ================= REACT HOOK FORM =================
 
+  const methods = useForm({
+    defaultValues: EMPTY_FORM,
+  });
+
   const {
     register,
     control,
@@ -125,9 +111,7 @@ export default function Staff() {
     clearErrors,
     setError,
     formState: { errors },
-  } = useForm({
-    defaultValues: EMPTY_FORM,
-  });
+  } = methods;
 
   // ================= LOAD TABLE =================
 
@@ -514,221 +498,245 @@ export default function Staff() {
                 </p>
               )}
 
-              <form
-                noValidate
-                aria-busy={isBusy}
-                onSubmit={handleSubmit(saveStaff)}
-              >
-                <fieldset
-                  disabled={isBusy}
-                  className="m-0 min-w-0 space-y-6 border-0 p-0"
+              <FormProvider {...methods}>
+                <form
+                  noValidate
+                  aria-busy={isBusy}
+                  onSubmit={handleSubmit(saveStaff)}
                 >
-                  <FormSection
-                    title="Personal information"
-                    description="Identity and contact details of the staff member."
+                  <fieldset
+                    disabled={isBusy}
+                    className="m-0 min-w-0 space-y-6 border-0 p-0"
                   >
-                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                      {PERSONAL_FIELDS.map((item) => (
-                        <div key={item.name}>
-                          <label
-                            htmlFor={item.name}
-                            className="mb-2 block text-sm font-semibold"
-                          >
-                            {item.label}
-                          </label>
-
-                          <Input
-                            id={item.name}
-                            type={item.type ?? "text"}
-                            placeholder={`Enter ${item.label.toLowerCase()}`}
-                            className={`custom-input-sm ${
-                              errors[item.name] ? "border-red-400" : ""
-                            }`}
-                            aria-invalid={!!errors[item.name]}
-                            {...register(item.name, {
-                              required: `${item.label} is required`,
-                              maxLength: {
-                                value: item.maxLength,
-                                message: `Maximum ${item.maxLength} characters`,
-                              },
-                              ...(item.name === "email"
-                                ? {
-                                    pattern: {
-                                      value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                                      message: "Enter a valid email address",
-                                    },
-                                  }
-                                : {}),
-                            })}
-                          />
-
-                          <FieldError errors={errors} name={item.name} />
-                        </div>
-                      ))}
-
-                      <div className="sm:col-span-2">
-                        <label className="mb-2 block text-sm font-semibold">
-                          Gender
-                        </label>
-
-                        <div className="flex items-center gap-5">
-                          {["Male", "Female"].map((gender) => (
+                    <FormSection
+                      title="Personal information"
+                      description="Identity and contact details of the staff member."
+                    >
+                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                        {PERSONAL_FIELDS.map((item) => (
+                          <div key={item.name}>
                             <label
-                              key={gender}
-                              className="flex cursor-pointer items-center gap-2 text-sm"
+                              htmlFor={item.name}
+                              className="mb-2 block text-sm font-semibold"
                             >
-                              <input
-                                type="radio"
-                                value={gender}
-                                className="h-4 w-4 accent-[var(--primary)]"
-                                {...register("gender", {
-                                  required: "Gender is required",
-                                })}
-                              />
-                              {gender}
+                              {item.label}
                             </label>
-                          ))}
-                        </div>
 
-                        <FieldError errors={errors} name="gender" />
-                      </div>
+                            <Input
+                              id={item.name}
+                              type={item.type ?? "text"}
+                              placeholder={`Enter ${item.label.toLowerCase()}`}
+                              className={`custom-input-sm ${
+                                errors[item.name] ? "border-red-400" : ""
+                              }`}
+                              aria-invalid={!!errors[item.name]}
+                              {...register(item.name, {
+                                required: `${item.label} is required`,
+                                maxLength: {
+                                  value: item.maxLength,
+                                  message: `Maximum ${item.maxLength} characters`,
+                                },
+                                ...(item.name === "email"
+                                  ? {
+                                      pattern: {
+                                        value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                                        message: "Enter a valid email address",
+                                      },
+                                    }
+                                  : {}),
+                              })}
+                            />
 
-                      <div className="sm:col-span-2">
-                        <label
-                          htmlFor="address"
-                          className="mb-2 block text-sm font-semibold"
-                        >
-                          Address
-                        </label>
+                            <FieldError errors={errors} name={item.name} />
+                          </div>
+                        ))}
 
-                        <Textarea
-                          id="address"
-                          rows={3}
-                          placeholder="Enter address"
-                          className="custom-input-sm resize-none"
-                          aria-invalid={!!errors.address}
-                          {...register("address", {
-                            required: "Address is required",
-                            maxLength: {
-                              value: 500,
-                              message: "Maximum 500 characters",
-                            },
-                          })}
-                        />
-
-                        <FieldError errors={errors} name="address" />
-                      </div>
-                    </div>
-                  </FormSection>
-
-                  <FormSection
-                    title="Job information"
-                    description="Work assignment, joining date and status."
-                  >
-                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                      {JOB_FIELDS.map((item) => (
-                        <div key={item.name}>
-                          <label
-                            htmlFor={item.name}
-                            className="mb-2 block text-sm font-semibold"
-                          >
-                            {item.label}
+                        <div className="sm:col-span-2">
+                          <label className="mb-2 block text-sm font-semibold">
+                            Gender
                           </label>
 
-                          <NativeSelect
-                            id={item.name}
-                            className="custom-input-sm"
-                            aria-invalid={!!errors[item.name]}
-                            {...register(item.name, {
-                              required: `${item.label} is required`,
-                            })}
-                          >
-                            <option value="">
-                              Select {item.label.toLowerCase()}
-                            </option>
-
-                            {item.options.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
+                          <div className="flex items-center gap-5">
+                            {["Male", "Female"].map((gender) => (
+                              <label
+                                key={gender}
+                                className="flex cursor-pointer items-center gap-2 text-sm"
+                              >
+                                <input
+                                  type="radio"
+                                  value={gender}
+                                  className="h-4 w-4 accent-[var(--primary)]"
+                                  {...register("gender", {
+                                    required: "Gender is required",
+                                  })}
+                                />
+                                {gender}
+                              </label>
                             ))}
-                          </NativeSelect>
+                          </div>
 
-                          <FieldError errors={errors} name={item.name} />
+                          <FieldError errors={errors} name="gender" />
                         </div>
-                      ))}
 
-                      {/* Flatpickr date field */}
-                      <div>
-                        <label
-                          htmlFor="joining_date"
-                          className="mb-2 block text-sm font-semibold"
-                        >
-                          Joining Date
-                        </label>
+                        <div className="sm:col-span-2">
+                          <label
+                            htmlFor="address"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Address
+                          </label>
 
-                        <Controller
-                          name="joining_date"
-                          control={control}
-                          rules={{
-                            required: "Joining date is required",
-                          }}
-                          render={({ field }) => (
-                            <Flatpickr
-                              id="joining_date"
-                              name={field.name}
-                              value={field.value || ""}
-                              options={DATE_OPTIONS}
-                              disabled={isBusy}
-                              placeholder="Select joining date"
-                              className={`custom-input-sm w-full ${
-                                errors.joining_date ? "border-red-400" : ""
-                              }`}
-                              aria-invalid={!!errors.joining_date}
-                              onChange={(_, dateString) => {
-                                field.onChange(dateString);
-                              }}
-                              onClose={() => {
-                                field.onBlur();
-                              }}
-                              onReady={(_, __, instance) => {
-                                field.ref(instance.input);
-                              }}
-                            />
-                          )}
-                        />
-
-                        <FieldError errors={errors} name="joining_date" />
-                      </div>
-
-                      {/* Active status */}
-                      <div className="flex items-center gap-3 pt-1 sm:col-span-2">
-                        <label
-                          htmlFor="status"
-                          className="text-sm font-semibold"
-                        >
-                          Active Status
-                        </label>
-
-                        <label className="relative inline-flex cursor-pointer items-center">
-                          <input
-                            id="status"
-                            type="checkbox"
-                            className="peer sr-only"
-                            {...register("status")}
+                          <Textarea
+                            id="address"
+                            rows={3}
+                            placeholder="Enter address"
+                            className="custom-input-sm resize-none"
+                            aria-invalid={!!errors.address}
+                            {...register("address", {
+                              required: "Address is required",
+                              maxLength: {
+                                value: 500,
+                                message: "Maximum 500 characters",
+                              },
+                            })}
                           />
 
-                          <span className="h-6 w-11 rounded-full bg-secondary transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary" />
-
-                          <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-card transition-transform peer-checked:translate-x-5" />
-                        </label>
-
-                        <FieldError errors={errors} name="status" />
+                          <FieldError errors={errors} name="address" />
+                        </div>
                       </div>
-                    </div>
-                  </FormSection>
-                </fieldset>
-              </form>
+                    </FormSection>
+
+                    <FormSection
+                      title="Job information"
+                      description="Work assignment, joining date and status."
+                    >
+                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                        {/* Branch */}
+                        <div>
+                          <label
+                            htmlFor="branch"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Branch
+                          </label>
+
+                          <Select2
+                            name="branch"
+                            endpoint="/branch_filter"
+                            placeholder="Select branch..."
+                            disabled={isBusy}
+                            rules={{ required: "Please select a branch." }}
+                          />
+                        </div>
+
+                        {/* Designation */}
+                        <div>
+                          <label
+                            htmlFor="designation"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Designation
+                          </label>
+
+                          <Select2
+                            name="designation"
+                            endpoint="/designation_filter"
+                            placeholder="Select designation..."
+                            disabled={isBusy}
+                            rules={{ required: "Please select a designation." }}
+                          />
+                        </div>
+
+                        {/* Department */}
+                        <div>
+                          <label
+                            htmlFor="department"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Department
+                          </label>
+
+                          <Select2
+                            name="department"
+                            endpoint="/department_filter"
+                            placeholder="Select department..."
+                            disabled={isBusy}
+                            rules={{ required: "Please select a department." }}
+                          />
+                        </div>
+
+                        {/* Joining Date */}
+                        <div>
+                          <label
+                            htmlFor="joining_date"
+                            className="mb-2 block text-sm font-semibold"
+                          >
+                            Joining Date
+                          </label>
+
+                          <Controller
+                            name="joining_date"
+                            control={control}
+                            rules={{
+                              required: "Joining date is required",
+                            }}
+                            render={({ field }) => (
+                              <Flatpickr
+                                id="joining_date"
+                                name={field.name}
+                                value={field.value || ""}
+                                options={DATE_OPTIONS}
+                                disabled={isBusy}
+                                placeholder="Select joining date"
+                                className={`custom-input-sm w-full ${
+                                  errors.joining_date ? "border-red-400" : ""
+                                }`}
+                                aria-invalid={!!errors.joining_date}
+                                onChange={(_, dateString) => {
+                                  field.onChange(dateString);
+                                }}
+                                onClose={() => {
+                                  field.onBlur();
+                                }}
+                                onReady={(_, __, instance) => {
+                                  field.ref(instance.input);
+                                }}
+                              />
+                            )}
+                          />
+
+                          <FieldError errors={errors} name="joining_date" />
+                        </div>
+
+                        {/* Active status */}
+                        <div className="flex items-center gap-3 pt-1 sm:col-span-2">
+                          <label
+                            htmlFor="status"
+                            className="text-sm font-semibold"
+                          >
+                            Active Status
+                          </label>
+
+                          <label className="relative inline-flex cursor-pointer items-center">
+                            <input
+                              id="status"
+                              type="checkbox"
+                              className="peer sr-only"
+                              {...register("status")}
+                            />
+
+                            <span className="h-6 w-11 rounded-full bg-secondary transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary" />
+
+                            <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-card transition-transform peer-checked:translate-x-5" />
+                          </label>
+
+                          <FieldError errors={errors} name="status" />
+                        </div>
+                      </div>
+                    </FormSection>
+                  </fieldset>
+                </form>
+              </FormProvider>
             </CustomDrawer>
 
             <div className="xl:col-span-12">

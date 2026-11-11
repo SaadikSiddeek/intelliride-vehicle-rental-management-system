@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { Plus, TriangleAlert } from "lucide-react";
 import { TabulatorFull as Tabulator } from "tabulator-tables";
 
@@ -10,6 +10,7 @@ import PageHeader from "@/components/PageHeader";
 import CustomDrawer from "@/components/Drawer";
 import CarLoader from "@/components/CarLoader";
 import axiosClient from "@/axios-client";
+import Select2 from "@/components/Select2";
 
 import "tabulator-tables/dist/css/tabulator.min.css";
 
@@ -55,6 +56,10 @@ export default function VehicleModel() {
 
   // ================= REACT HOOK FORM =================
 
+  const methods = useForm({
+    defaultValues: EMPTY_FORM,
+  });
+
   const {
     register,
     control,
@@ -63,9 +68,7 @@ export default function VehicleModel() {
     clearErrors,
     setError,
     formState: { errors },
-  } = useForm({
-    defaultValues: EMPTY_FORM,
-  });
+  } = methods;
 
   const status = useWatch({ control, name: "status" });
   const selectedBrand = useWatch({ control, name: "brand" });
@@ -523,266 +526,213 @@ export default function VehicleModel() {
                 </p>
               )}
 
-              <form
-                noValidate
-                aria-busy={isBusy}
-                onSubmit={handleSubmit(saveVehicleModel)}
-              >
-                <fieldset
-                  disabled={isBusy}
-                  className="m-0 min-w-0 border-0 p-0"
+              <FormProvider {...methods}>
+                <form
+                  noValidate
+                  aria-busy={isBusy}
+                  onSubmit={handleSubmit(saveVehicleModel)}
                 >
-                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                    <div>
-                      <label
-                        htmlFor="model_brand"
-                        className="mb-2 block text-sm font-semibold"
-                      >
-                        Brand
-                      </label>
+                  <fieldset
+                    disabled={isBusy}
+                    className="m-0 min-w-0 border-0 p-0"
+                  >
+                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                      <div>
+                        <label
+                          htmlFor="brand"
+                          className="mb-2 block text-sm font-semibold"
+                        >
+                          Brand
+                        </label>
 
-                      <NativeSelect
-                        id="model_brand"
-                        className="custom-input-sm"
-                        aria-invalid={!!errors.brand}
-                        {...register("brand", {
-                          required: "Please select a brand.",
-                        })}
-                      >
-                        <option value="">Select brand</option>
+                        <Select2
+                          name="brand"
+                          endpoint="/brand_filter"
+                          placeholder="Select brand..."
+                          disabled={isBusy}
+                          rules={{ required: "Please select a brand." }}
+                        />
 
-                        {selectedBrand &&
-                          !brands.some(
-                            (brand) => String(brand.ID) === selectedBrand,
-                          ) && (
-                            <option value={selectedBrand}>
-                              Current brand (ID {selectedBrand})
-                            </option>
-                          )}
-
-                        {brands.map((brand) => (
-                          <option key={brand.ID} value={String(brand.ID)}>
-                            {brand.brand_name}
-                            {Number(brand.status) === 0 ? " (Inactive)" : ""}
-                          </option>
-                        ))}
-                      </NativeSelect>
-
-                      <FieldError errors={errors} name="brand" />
-
-                      {!brands.length && (
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          No brands loaded. Create a brand or retry loading the
-                          page.
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="model_name"
-                        className="mb-2 block text-sm font-semibold"
-                      >
-                        Model Name
-                      </label>
-
-                      <Input
-                        id="model_name"
-                        type="text"
-                        maxLength={100}
-                        placeholder="Enter model name"
-                        className="custom-input-sm"
-                        aria-invalid={!!errors.model_name}
-                        {...register("model_name", {
-                          required: "Model name is required.",
-                          validate: (value) =>
-                            value.trim().length > 0 ||
-                            "Model name cannot contain only spaces.",
-                          maxLength: {
-                            value: 100,
-                            message: "Maximum 100 characters.",
-                          },
-                        })}
-                      />
-
-                      <FieldError errors={errors} name="model_name" />
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="model_year"
-                        className="mb-2 block text-sm font-semibold"
-                      >
-                        Manufacturing Year
-                        <span className="ml-2 text-xs font-normal text-muted-foreground">
-                          Optional
-                        </span>
-                      </label>
-
-                      <Input
-                        id="model_year"
-                        type="number"
-                        min={1886}
-                        max={maxYear}
-                        step={1}
-                        placeholder="Enter manufacturing year"
-                        className="custom-input-sm"
-                        aria-invalid={!!errors.year}
-                        {...register("year", {
-                          validate: (value) =>
-                            value === "" ||
-                            (Number.isInteger(Number(value)) &&
-                              Number(value) >= 1886 &&
-                              Number(value) <= maxYear) ||
-                            `Enter a whole year between 1886 and ${maxYear}.`,
-                        })}
-                      />
-
-                      <FieldError errors={errors} name="year" />
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="model_engine_capacity"
-                        className="mb-2 block text-sm font-semibold"
-                      >
-                        Engine Capacity
-                        <span className="ml-2 text-xs font-normal text-muted-foreground">
-                          Optional
-                        </span>
-                      </label>
-
-                      <Input
-                        id="model_engine_capacity"
-                        type="text"
-                        maxLength={50}
-                        placeholder="Eg: 1500cc"
-                        className="custom-input-sm"
-                        aria-invalid={!!errors.engine_capacity}
-                        {...register("engine_capacity", {
-                          maxLength: {
-                            value: 50,
-                            message: "Maximum 50 characters.",
-                          },
-                        })}
-                      />
-
-                      <FieldError errors={errors} name="engine_capacity" />
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="model_fuel_type"
-                        className="mb-2 block text-sm font-semibold"
-                      >
-                        Fuel Type
-                      </label>
-
-                      <NativeSelect
-                        id="model_fuel_type"
-                        className="custom-input-sm"
-                        aria-invalid={!!errors.fuel_type}
-                        {...register("fuel_type", {
-                          required: "Please select a fuel type.",
-                        })}
-                      >
-                        <option value="">Select fuel type</option>
-
-                        {/* Temporary manual option as requested. */}
-                        <option value="1">Petrol</option>
-
-                        {/* Preserve other saved IDs during editing. */}
-                        {selectedFuel && selectedFuel !== "1" && (
-                          <option value={selectedFuel}>
-                            Current fuel type (ID {selectedFuel})
-                          </option>
-                        )}
-                      </NativeSelect>
-
-                      <FieldError errors={errors} name="fuel_type" />
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="model_transmission"
-                        className="mb-2 block text-sm font-semibold"
-                      >
-                        Transmission
-                      </label>
-
-                      <NativeSelect
-                        id="model_transmission"
-                        className="custom-input-sm"
-                        aria-invalid={!!errors.transmission}
-                        {...register("transmission", {
-                          required: "Please select a transmission type.",
-                        })}
-                      >
-                        <option value="">Select transmission</option>
-
-                        {/* Temporary manual option as requested. */}
-                        <option value="1">Manual</option>
-
-                        {/* Preserve other saved IDs during editing. */}
-                        {selectedTransmission &&
-                          selectedTransmission !== "1" && (
-                            <option value={selectedTransmission}>
-                              Current transmission (ID {selectedTransmission})
-                            </option>
-                          )}
-                      </NativeSelect>
-
-                      <FieldError errors={errors} name="transmission" />
-                    </div>
-
-                    <div className="rounded-xl border border-border bg-secondary/20 p-4 sm:col-span-2">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <label
-                            htmlFor="model_status"
-                            className="block text-sm font-semibold"
-                          >
-                            Active Status
-                          </label>
-
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {status
-                              ? "This model is marked as active."
-                              : "This model is marked as inactive."}
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm text-muted-foreground">
-                            {status ? "Active" : "Inactive"}
-                          </span>
-
-                          <label className="relative inline-flex cursor-pointer items-center">
-                            <input
-                              id="model_status"
-                              type="checkbox"
-                              className="peer sr-only"
-                              {...register("status")}
-                            />
-
-                            <span
-                              aria-hidden="true"
-                              className="h-6 w-11 rounded-full bg-secondary transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-disabled:opacity-50"
-                            />
-
-                            <span
-                              aria-hidden="true"
-                              className="absolute left-1 top-1 h-4 w-4 rounded-full bg-card shadow-sm transition-transform peer-checked:translate-x-5"
-                            />
-                          </label>
-                        </div>
+                        <FieldError errors={errors} name="brand" />
                       </div>
 
-                      <FieldError errors={errors} name="status" />
+                      <div>
+                        <label
+                          htmlFor="model_name"
+                          className="mb-2 block text-sm font-semibold"
+                        >
+                          Model Name
+                        </label>
+
+                        <Input
+                          id="model_name"
+                          type="text"
+                          maxLength={100}
+                          placeholder="Enter model name"
+                          className="custom-input-sm"
+                          aria-invalid={!!errors.model_name}
+                          {...register("model_name", {
+                            required: "Model name is required.",
+                            validate: (value) =>
+                              value.trim().length > 0 ||
+                              "Model name cannot contain only spaces.",
+                            maxLength: {
+                              value: 100,
+                              message: "Maximum 100 characters.",
+                            },
+                          })}
+                        />
+
+                        <FieldError errors={errors} name="model_name" />
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="model_year"
+                          className="mb-2 block text-sm font-semibold"
+                        >
+                          Manufacturing Year
+                          <span className="ml-2 text-xs font-normal text-muted-foreground">
+                            Optional
+                          </span>
+                        </label>
+
+                        <Input
+                          id="model_year"
+                          type="number"
+                          min={1886}
+                          max={maxYear}
+                          step={1}
+                          placeholder="Enter manufacturing year"
+                          className="custom-input-sm"
+                          aria-invalid={!!errors.year}
+                          {...register("year", {
+                            validate: (value) =>
+                              value === "" ||
+                              (Number.isInteger(Number(value)) &&
+                                Number(value) >= 1886 &&
+                                Number(value) <= maxYear) ||
+                              `Enter a whole year between 1886 and ${maxYear}.`,
+                          })}
+                        />
+
+                        <FieldError errors={errors} name="year" />
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="model_engine_capacity"
+                          className="mb-2 block text-sm font-semibold"
+                        >
+                          Engine Capacity
+                          <span className="ml-2 text-xs font-normal text-muted-foreground">
+                            Optional
+                          </span>
+                        </label>
+
+                        <Input
+                          id="model_engine_capacity"
+                          type="text"
+                          maxLength={50}
+                          placeholder="Eg: 1500cc"
+                          className="custom-input-sm"
+                          aria-invalid={!!errors.engine_capacity}
+                          {...register("engine_capacity", {
+                            maxLength: {
+                              value: 50,
+                              message: "Maximum 50 characters.",
+                            },
+                          })}
+                        />
+
+                        <FieldError errors={errors} name="engine_capacity" />
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="fuel_type"
+                          className="mb-2 block text-sm font-semibold"
+                        >
+                          Fuel Type
+                        </label>
+
+                        <Select2
+                          name="fuel_type"
+                          endpoint="/fuel_type_filter"
+                          placeholder="Select fuel type..."
+                          disabled={isBusy}
+                          rules={{ required: "Please select a fuel type." }}
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="transmission"
+                          className="mb-2 block text-sm font-semibold"
+                        >
+                          Transmission
+                        </label>
+
+                        <Select2
+                          name="transmission"
+                          endpoint="/transmission_type_filter"
+                          placeholder="Select transmission type..."
+                          disabled={isBusy}
+                          rules={{
+                            required: "Please select a transmission type.",
+                          }}
+                        />
+                      </div>
+
+                      <div className="rounded-xl border border-border bg-secondary/20 p-4 sm:col-span-2">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <label
+                              htmlFor="model_status"
+                              className="block text-sm font-semibold"
+                            >
+                              Active Status
+                            </label>
+
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {status
+                                ? "This model is marked as active."
+                                : "This model is marked as inactive."}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm text-muted-foreground">
+                              {status ? "Active" : "Inactive"}
+                            </span>
+
+                            <label className="relative inline-flex cursor-pointer items-center">
+                              <input
+                                id="model_status"
+                                type="checkbox"
+                                className="peer sr-only"
+                                {...register("status")}
+                              />
+
+                              <span
+                                aria-hidden="true"
+                                className="h-6 w-11 rounded-full bg-secondary transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-disabled:opacity-50"
+                              />
+
+                              <span
+                                aria-hidden="true"
+                                className="absolute left-1 top-1 h-4 w-4 rounded-full bg-card shadow-sm transition-transform peer-checked:translate-x-5"
+                              />
+                            </label>
+                          </div>
+                        </div>
+
+                        <FieldError errors={errors} name="status" />
+                      </div>
                     </div>
-                  </div>
-                </fieldset>
-              </form>
+                  </fieldset>
+                </form>
+              </FormProvider>
             </CustomDrawer>
 
             <div className="xl:col-span-12">
