@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Services\AccessService;
+use Database\Seeders\DatabaseSeeder;
 use Illuminate\Support\Env;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -142,14 +143,49 @@ it('reads deployment-local assignments through the actual environment configurat
     }
 });
 
-
 it('does not provision default privileged accounts or business records during deployment seeding', function () {
     $before = ['users' => DB::table('users_tb')->count(), 'roles' => DB::table('roles_tb')->count(), 'branches' => DB::table('branch_tb')->count()];
     $password = DB::table('users_tb')->where('ID', 701)->value('password');
-    app(\Database\Seeders\DatabaseSeeder::class)->run();
+    app(DatabaseSeeder::class)->run();
     expect(DB::table('users_tb')->count())->toBe($before['users'])
         ->and(DB::table('roles_tb')->count())->toBe($before['roles'])
         ->and(DB::table('branch_tb')->count())->toBe($before['branches'])
         ->and(DB::table('users_tb')->where('ID', 701)->value('password'))->toBe($password)
         ->and(DB::table('users_tb')->where('username', 'admin')->exists())->toBeFalse();
+});
+
+it('rotates a password through hidden interactive prompts and revokes tokens without changing account links or privileges', function () {
+    $account = User::findOrFail(701);
+    $account->createToken('synthetic-rotation');
+    $before = $account->only(['role_id', 'emp_id', 'status']);
+    $this->artisan('intelliride:rotate-account-password', ['userId' => '701'])
+        ->expectsConfirmation('Rotate password for account #701 and revoke all its access tokens?', 'yes')
+        ->expectsQuestion('New password', 'Synthetic#Secure2026!')
+        ->expectsQuestion('Confirm new password', 'Synthetic#Secure2026!')
+        ->expectsOutput('Password rotated and existing access tokens revoked. Sign in again.')
+        ->assertSuccessful();
+    expect(Hash::check('Synthetic#Secure2026!', $account->fresh()->password))->toBeTrue()
+        ->and($account->fresh()->only(['role_id', 'emp_id', 'status']))->toBe($before)
+        ->and($account->tokens()->count())->toBe(0);
+});
+
+it('rejects weak or mismatched password rotation without changing credentials or tokens', function () {
+    $account = User::findOrFail(701);
+    $account->createToken('synthetic-rotation');
+    $hash = $account->password;
+    $this->artisan('intelliride:rotate-account-password', ['userId' => '701'])
+        ->expectsConfirmation('Rotate password for account #701 and revoke all its access tokens?', 'yes')
+        ->expectsQuestion('New password', 'weak')
+        ->expectsQuestion('Confirm new password', 'different')
+        ->expectsOutput('Password policy or confirmation failed. No account changes were made.')
+        ->assertFailed();
+    expect($account->fresh()->password)->toBe($hash)->and($account->tokens()->count())->toBe(1);
+});
+
+it('refuses noninteractive password rotation instead of accepting secrets in arguments or environment', function () {
+    $hash = User::findOrFail(701)->password;
+    $this->artisan('intelliride:rotate-account-password', ['userId' => '701', '--no-interaction' => true])
+        ->expectsOutput('Interactive hidden password entry is required.')
+        ->assertFailed();
+    expect(User::findOrFail(701)->password)->toBe($hash);
 });
