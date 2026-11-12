@@ -25,10 +25,10 @@ class CustomerController extends Controller
 
     private function authorizeStaff(Request $request): void
     {
-        $allowedUsers = config('customer_access.users', []);
+
 
         abort_unless(
-            in_array((string) $request->user()->getAuthIdentifier(), $allowedUsers, true),
+            app(\App\Services\AccessService::class)->customers($request->user()),
             403,
             'Customer management access is required.'
         );

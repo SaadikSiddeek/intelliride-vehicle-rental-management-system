@@ -39,6 +39,7 @@ export default function Users() {
 
   const [pageError, setPageError] = useState("");
   const [formError, setFormError] = useState("");
+  const [legacyEmployeeLink, setLegacyEmployeeLink] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
   const [showPassword, setShowPassword] = useState(false);
@@ -97,6 +98,7 @@ export default function Users() {
     if (requestBusy.current) return;
 
     reset();
+    setLegacyEmployeeLink(false);
     setUpdateId("");
 
     setShowPassword(false);
@@ -116,6 +118,7 @@ export default function Users() {
       requestBusy.current = true;
 
       reset();
+      setLegacyEmployeeLink(false);
       setUpdateId(id);
 
       setShowPassword(false);
@@ -138,6 +141,9 @@ export default function Users() {
         }
 
         const user = data.data;
+        const employeeId = String(user.emp_id ?? "");
+        const validEmployeeId = /^[1-9]\d*$/.test(employeeId);
+        setLegacyEmployeeLink(Boolean(employeeId) && !validEmployeeId);
 
         setUpdateId(user.ID);
 
@@ -147,7 +153,7 @@ export default function Users() {
           {
             username: user.username ?? "",
             email: user.email ?? "",
-            emp_id: String(user.emp_id ?? ""),
+            emp_id: validEmployeeId ? employeeId : "",
             role_id: String(user.role_id ?? ""),
             password: "",
             password_confirmation: "",
@@ -158,6 +164,7 @@ export default function Users() {
         setOpenDrawer(false);
         setUpdateId("");
         reset();
+        setLegacyEmployeeLink(false);
 
         setPageError(
           error.response?.data?.message ||
@@ -201,6 +208,7 @@ export default function Users() {
       }
 
       reset();
+      setLegacyEmployeeLink(false);
       setUpdateId("");
       setOpenDrawer(false);
 
@@ -258,6 +266,7 @@ export default function Users() {
 
     if (!open) {
       reset();
+      setLegacyEmployeeLink(false);
       setUpdateId("");
       setFormError("");
 
@@ -556,6 +565,7 @@ export default function Users() {
                             <option value="1">Ahamed Saadik</option>
                           </NativeSelect> */}
 
+                            {legacyEmployeeLink && <p className="mt-2 text-sm text-muted-foreground">This legacy account has no valid staff record link. Select its actual employee before saving.</p>}
                             <FieldError errors={errors} name="emp_id" />
                           </div>
 

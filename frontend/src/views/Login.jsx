@@ -36,7 +36,9 @@ export default function Login() {
       .catch((err) => {
         const response = err.response;
 
-        if (response && response.status === 422) {
+        if (!response || response.status !== 422) {
+          setErrors({ access: [response?.data?.message || "Unable to reach the service. Please try again."] });
+        } else if (response.status === 422) {
           if (response.data.errors) {
             setErrors(response.data.errors);
           } else {

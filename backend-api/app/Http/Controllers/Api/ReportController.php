@@ -19,7 +19,7 @@ class ReportController extends Controller
     {
         app(RentalController::class)->authorizeStaff($r);
 
-        return response()->json(['status' => true, 'data' => ['types' => ReportService::TYPES, 'can_include_identity' => in_array((string) $r->user()->getAuthIdentifier(), config('rental.identity_report_user_ids', []), true), 'max_rows' => 20000, 'pdf_max_rows' => 500]]);
+        return response()->json(['status' => true, 'data' => ['types' => ReportService::TYPES, 'can_include_identity' => app(\App\Services\AccessService::class)->identity($r->user()), 'max_rows' => 20000, 'pdf_max_rows' => 500]]);
     }
 
     public function customerFilter(Request $r)
@@ -41,7 +41,7 @@ class ReportController extends Controller
         app(RentalController::class)->authorizeStaff($r);
         $f = $r->validate(['q' => ['nullable', 'string', 'max:100'], 'overdue_only' => ['nullable', 'boolean'], 'type' => ['required', Rule::in(array_keys(ReportService::TYPES))], 'from' => ['nullable', 'date_format:Y-m-d'], 'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'], 'customer_id' => ['nullable', 'integer', 'min:1'], 'vehicle_id' => ['nullable', 'integer', 'min:1'], 'branch_id' => ['nullable', 'integer', 'min:1'], 'staff_id' => ['nullable', 'integer', 'min:1'], 'status' => ['nullable', 'string', 'max:40'], 'include_identity' => ['nullable', 'boolean'], 'page' => ['nullable', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'between:10,200']]);
         if (! empty($f['include_identity'])) {
-            abort_unless(in_array((string) $r->user()->getAuthIdentifier(), config('rental.identity_report_user_ids', []), true), 403, 'Identity export permission is required.');
+            abort_unless(app(\App\Services\AccessService::class)->identity($r->user()), 403, 'Identity export permission is required.');
         }
         if ($f['type'] === 'customer_history' && empty($f['customer_id'])) {
             throw ValidationException::withMessages(['customer_id' => 'Select a customer for this report.']);

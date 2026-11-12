@@ -47,7 +47,7 @@ export default function Sidebar({
             ) : (
               <div className="nav-divider" />
             )}
-            {group.items.filter(item => !item.adminOnly || user?.can_manage_business).map(({ label, to, icon: Icon }) => (
+            {group.items.filter(item => (!item.adminOnly || user?.can_manage_business) && (!item.permission || user?.permissions?.[item.permission])).map(({ label, to, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}

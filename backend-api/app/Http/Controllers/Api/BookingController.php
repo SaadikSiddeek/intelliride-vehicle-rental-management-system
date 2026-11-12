@@ -13,7 +13,7 @@ class BookingController extends Controller
 {
     private function authorizeStaff(Request $request): void
     {
-        abort_unless(in_array((string) $request->user()->getAuthIdentifier(), config('customer_access.users', []), true), 403, 'Customer management access is required for bookings.');
+        abort_unless(app(\App\Services\AccessService::class)->customers($request->user()), 403, 'Customer management access is required for bookings.');
     }
 
     private function validated(Request $request): array

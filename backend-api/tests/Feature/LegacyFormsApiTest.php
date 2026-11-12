@@ -31,7 +31,7 @@ beforeEach(function () {
     $this->travelTo(now()->setDate(2026, 11, 11));
     (require database_path('migrations/2026_11_11_170000_create_rental_handover_tables.php'))->up();
     Storage::fake('rental_documents');
-    DB::table('roles_tb')->insert(['ID' => 1, 'role_name' => 'Test', 'branch_id' => 1]);
+    DB::table('roles_tb')->insert(['ID' => 1, 'role_name' => 'Admin', 'branch_id' => 1]);
     DB::table('users_tb')->insert(['ID' => 701, 'role_id' => 1, 'username' => 'test-admin', 'email' => 'test@example.test', 'password' => 'not-used', 'emp_id' => '3', 'status' => 1]);
     DB::table('department_tb')->insert(['ID' => 1, 'department_name' => 'Test', 'branch_id' => 1]);
     DB::table('designation_tb')->insert(['ID' => 1, 'designation_name' => 'Test', 'branch_id' => 1]);

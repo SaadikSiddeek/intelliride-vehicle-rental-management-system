@@ -2,13 +2,13 @@
 
 namespace App\Models;
 
+use App\Services\AccessService;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable([
@@ -26,11 +26,16 @@ use Laravel\Sanctum\HasApiTokens;
 ])]
 class User extends Authenticatable
 {
-    protected $appends = ['can_manage_business', 'display_name', 'has_profile_photo'];
+    protected $appends = ['can_manage_business', 'display_name', 'has_profile_photo', 'permissions'];
 
     public function getCanManageBusinessAttribute(): bool
     {
-        return $this->status && in_array((string) $this->getAuthIdentifier(), config('customer_access.users', []), true) && $this->role_id && strtolower(trim((string) DB::table('roles_tb')->where('ID', $this->role_id)->value('role_name'))) === 'admin';
+        return app(AccessService::class)->company($this);
+    }
+
+    public function getPermissionsAttribute(): array
+    {
+        return app(AccessService::class)->capabilities($this);
     }
 
     public function getDisplayNameAttribute(): string

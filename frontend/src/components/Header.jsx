@@ -134,7 +134,7 @@ export default function Header({ user, onLogout, setMobileOpen }) {
             </div>
             <div className="search-results">
               {navigationItems
-                .filter(i => !i.adminOnly || user?.can_manage_business)
+                .filter(i => (!i.adminOnly || user?.can_manage_business) && (!i.permission || user?.permissions?.[i.permission]))
                 .filter((i) =>
                   i.label.toLowerCase().includes(query.toLowerCase()),
                 )

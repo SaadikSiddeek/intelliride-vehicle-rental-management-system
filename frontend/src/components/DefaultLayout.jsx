@@ -6,6 +6,7 @@ import Sidebar from "./Sidebar";
 import Header from "../components/Header";
 import { useTheme } from "../contexts/theme-context";
 import Brand from "./layout/Brand";
+import ApiFailureBanner from "./ApiFailureBanner";
 import FloatingCalculator from "./calculator/FloatingCalculator";
 
 export default function DefaultLayout() {
@@ -74,6 +75,7 @@ export default function DefaultLayout() {
         <Header user={user} onLogout={onLogout} setMobileOpen={setMobileOpen} />
 
         <main id="main-content" className="workspace-content">
+          <ApiFailureBanner />
           <Outlet />
         </main>
       </div>

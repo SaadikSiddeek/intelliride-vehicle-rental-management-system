@@ -27,7 +27,7 @@ use App\Http\Controllers\Api\RentalPackageController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'active.account'])->group(function () {
     Route::get('/business_profile', [\App\Http\Controllers\Api\BusinessProfileController::class,'show']);
     Route::post('/save_business_profile', [\App\Http\Controllers\Api\BusinessProfileController::class,'save']);
     Route::get('/business_branding', [\App\Http\Controllers\Api\BusinessProfileController::class,'branding']);
@@ -38,7 +38,7 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
 
-    Route::controller(UserController::class)->group(function () {
+    Route::controller(UserController::class)->middleware('administration')->group(function () {
         Route::post('/save_user', 'createUser');
         Route::post('/get_users', 'getUsers');
         Route::post('/fetch_user_data', 'fetchUserData');
@@ -50,7 +50,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/fetch_staff_data', 'fetchStaffData');
     });
 
-    Route::controller(RoleController::class)->group(function () {
+    Route::controller(RoleController::class)->middleware('administration')->group(function () {
         Route::post('/save_role', 'saveRole');
         Route::post('/get_roles', 'getRoles');
         Route::post('/fetch_role_data', 'fetchRoleData');
@@ -225,5 +225,5 @@ Route::get(
     ->where('folder', '[a-z0-9-]+_[1-9][0-9]*')
     ->where('filename', '[a-f0-9-]+\.(jpg|jpeg|png|webp)');
 
-Route::post('/signup', [AuthController::class, 'signup']);
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/signup', [AuthController::class, 'signup'])->middleware('throttle:6,1');
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');

@@ -18,7 +18,7 @@ class RentalController extends Controller
 {
     public function authorizeStaff(Request $request): void
     {
-        abort_unless($request->user()?->status && in_array((string) $request->user()->getAuthIdentifier(), config('customer_access.users', []), true), 403, 'Rental operations access is required.');
+        abort_unless(app(\App\Services\AccessService::class)->operations($request->user()), 403, 'Rental operations access is required.');
     }
 
     public function bookingFilter(Request $request)

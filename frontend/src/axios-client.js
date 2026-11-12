@@ -1,4 +1,5 @@
 import axios from "axios";
+import { apiFailure, API_FAILURE_EVENT } from "./lib/api-error.mjs";
 import { TOKEN_KEY, notifySessionExpired } from "./auth-session";
 
 const axiosClient = axios.create({
@@ -31,6 +32,12 @@ axiosClient.interceptors.response.use(
       }
     }
 
+    // Keep validation errors intact; replace transport/permission/server details with safe UI messages.
+    const failure = apiFailure(error);
+    if (failure && error.code !== "ERR_CANCELED") {
+      if (error.response) error.response.data = { ...error.response.data, message: failure.message };
+      if (error.response?.status !== 401) window.dispatchEvent(new CustomEvent(API_FAILURE_EVENT, { detail: failure }));
+    }
     return Promise.reject(error);
   },
 );

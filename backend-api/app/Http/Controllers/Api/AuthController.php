@@ -4,51 +4,34 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
-use App\Http\Requests\SignupRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
-    public function signup(SignupRequest $request)
+    public function signup(Request $request)
     {
-        $data = $request->validated();
-
-        $user = User::create([
-            'role_id' => $data['role_id'],
-            'username' => $data['username'],
-            'email' => $data['email'],
-            'password' => $data['password'],
-            'emp_id' => $data['emp_id'] ?? null,
-            'branch_id' => 1,
-            'status' => true,
-        ]);
-
-        $token = $user->createToken(
-            'main',
-            ['*'],
-            now()->addMinutes(30)
-        )->plainTextToken;
-
-        return response([
-            'user' => $user,
-            'token' => $token,
-        ], 201);
+        // Business accounts are provisioned only through authorized administration.
+        abort(403, 'Self-registration is unavailable. Contact your administrator for an account.');
     }
 
     public function login(LoginRequest $request)
     {
         $credentials = $request->validated();
 
-        if (!Auth::attempt($credentials)) {
+        if (! Auth::attempt($credentials)) {
             return response([
-                'message' => 'Provided email address or password is incorrect'
+                'message' => 'Provided email address or password is incorrect',
             ], 422);
         }
 
         /** @var User $user */
         $user = Auth::user();
+        if (! $user->status) {
+            Auth::logout();
+            abort(403, 'This account is inactive. Contact your administrator.');
+        }
 
         $token = $user->createToken(
             'main',
