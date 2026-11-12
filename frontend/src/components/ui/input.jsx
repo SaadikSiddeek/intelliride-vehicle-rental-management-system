@@ -1,10 +1,13 @@
+import DateInput from "@/components/DateInput";
 import { cn } from "@/lib/utils";
 import { useId } from "react";
 export function Input({ className, type, error, ...props }) {
   const generatedId = useId();
   const errorId = `${props.id || generatedId}-error`;
+  const date = type === "date" || type === "datetime-local";
   return (
     <>
+    {date ? <DateInput type={type} className={className} {...props} aria-invalid={error ? true : props["aria-invalid"]} aria-describedby={error ? errorId : props["aria-describedby"]} /> : (
     <input
       type={type}
       data-slot="input"
@@ -15,7 +18,7 @@ export function Input({ className, type, error, ...props }) {
       {...props}
       aria-invalid={error ? true : props["aria-invalid"]}
       aria-describedby={error ? errorId : props["aria-describedby"]}
-    />
+    />)}
     {error && <span id={errorId} className="field-error" role="alert">{error}</span>}
     </>
   );

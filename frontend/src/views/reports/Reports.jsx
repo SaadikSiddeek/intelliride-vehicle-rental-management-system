@@ -1,3 +1,4 @@
+import DateRange from "@/components/forms/DateRange";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router-dom";
@@ -7,7 +8,6 @@ import axiosClient from "@/axios-client";
 import PageHeader from "@/components/PageHeader";
 import FormSection from "@/components/forms/FormSection";
 import Select2 from "@/components/Select2";
-import FieldError from "@/components/ErrorField";
 import CarLoader from "@/components/CarLoader";
 import { Input, NativeSelect } from "@/components/ui/input";
 
@@ -68,8 +68,7 @@ function ReportScreen({ type }) {
       {error && <div role="alert" className="form-alert mb-5">{error}</div>}
       <FormProvider {...methods}><form noValidate className="mb-6" onSubmit={(event) => handleSubmit(() => load(1))(event)}><FormSection title="Report filters"><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div><label htmlFor="report_type" className="mb-2 block text-sm font-semibold">Report</label><NativeSelect id="report_type" value={type} onChange={(event) => navigate(`/reports/${event.target.value}`)}>{Object.entries(types).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</NativeSelect></div>
-        <div><label htmlFor="report_from" className="mb-2 block text-sm font-semibold">From</label><Input id="report_from" type="date" {...register("from")} /><FieldError name="from" errors={methods.formState.errors} /></div>
-        <div><label htmlFor="report_to" className="mb-2 block text-sm font-semibold">To</label><Input id="report_to" type="date" {...register("to")} /><FieldError name="to" errors={methods.formState.errors} /></div>
+        <div className="min-w-0"><label htmlFor="report_period" className="mb-2 block text-sm font-semibold">Date range</label><DateRange id="report_period" aria-label="Report date range" /></div>
         {!noCustomer && <div><label htmlFor="customer_id" className="mb-2 block text-sm font-semibold">Customer{type === "customer_history" ? " *" : ""}</label><Select2 name="customer_id" endpoint="/report_customer_filter" rules={type === "customer_history" ? { required: "Select a customer." } : undefined} /></div>}
         <div><label htmlFor="vehicle_id" className="mb-2 block text-sm font-semibold">Vehicle</label><Select2 name="vehicle_id" endpoint="/rental_package_vehicles" /></div>
         <div><label htmlFor="report_search" className="mb-2 block text-sm font-semibold">Search report</label><Input id="report_search" placeholder="Search visible report fields" {...register("q")} /></div>

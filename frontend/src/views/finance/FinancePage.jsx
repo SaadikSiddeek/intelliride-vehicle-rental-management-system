@@ -1,3 +1,4 @@
+import { DatePicker } from "@/components/DateInput";
 import useRecordLink from "@/hooks/useRecordLink";
 import { tableAction } from "@/lib/table-actions";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -32,6 +33,7 @@ export default function FinancePage({ mode }) {
   const [open, setOpen] = useState(false), [invoice, setInvoice] = useState(null), [entry, setEntry] = useState(null);
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(false), [pageError, setPageError] = useState(""), [formError, setFormError] = useState(""), [success, setSuccess] = useState("");
   const tableElement = useRef(null), table = useRef(null), listRequest = useRef(null), formRequest = useRef(null), contextRequest = useRef(null), requestKey = useRef(null);
+  const [dateRange, setDateRange] = useState([]);
   const filters = useRef({ from: "", to: "", payment_status: "", method: "" });
   const title = TITLES[mode], readOnly = mode === "invoices" || !!entry;
   const loadTable = useCallback(async () => {
@@ -117,7 +119,7 @@ export default function FinancePage({ mode }) {
           {mode === "invoices" && <FormSection title="Receipt and deposit history">{[...invoice.booking_payments.map((r) => ({ ...r, kind: "Original booking advance" })), ...invoice.payments.map((r) => ({ ...r, kind: "Additional invoice receipt" })), ...invoice.deposits.map((r) => ({ ...r, kind: `Deposit ${r.entry_type}` }))].map((r, index) => <p key={index} className="mb-2 text-sm">{r.kind}: {money.format(r.amount)} · {r.method || "Settlement"} · {r.reference || "No reference"}</p>)}</FormSection>}
         </div>}
       </CustomDrawer>
-      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"><div className="border-b px-6 py-5"><h2 className="text-base font-semibold">{title} Register</h2></div><div id="finance-tb" className="relative p-6" aria-busy={loading}><div className="grid grid-cols-1 gap-3 sm:grid-cols-3"><Input aria-label="Finance date from" type="date" onChange={(event) => setFilter("from", event.target.value)} /><Input aria-label="Finance date to" type="date" onChange={(event) => setFilter("to", event.target.value)} />{mode === "invoices" ? <NativeSelect aria-label="Invoice payment status filter" onChange={(event) => setFilter("payment_status", event.target.value)}><option value="">All payment statuses</option>{["Unpaid", "Partially Paid", "Paid"].map((status) => <option key={status} value={status}>{status}</option>)}</NativeSelect> : <NativeSelect aria-label="Payment method filter" onChange={(event) => setFilter("method", event.target.value)}><option value="">All methods</option><option value="cash">Cash</option><option value="bank_transfer">Bank transfer</option><option value="card">Card</option></NativeSelect>}</div><TableSearch table={table} /><div ref={tableElement} className="overflow-hidden rounded-xl border border-border" /></div></div>
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"><div className="border-b px-6 py-5"><h2 className="text-base font-semibold">{title} Register</h2></div><div id="finance-tb" className="relative p-6" aria-busy={loading}><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><DatePicker id="finance_period" aria-label="Finance date range" range value={dateRange} onValueChange={dates => { setDateRange(dates); if (dates.length === 1) return; filters.current.from = dates[0] || ""; filters.current.to = dates[1] || ""; void loadTable(); }} />{mode === "invoices" ? <NativeSelect aria-label="Invoice payment status filter" onChange={(event) => setFilter("payment_status", event.target.value)}><option value="">All payment statuses</option>{["Unpaid", "Partially Paid", "Paid"].map((status) => <option key={status} value={status}>{status}</option>)}</NativeSelect> : <NativeSelect aria-label="Payment method filter" onChange={(event) => setFilter("method", event.target.value)}><option value="">All methods</option><option value="cash">Cash</option><option value="bank_transfer">Bank transfer</option><option value="card">Card</option></NativeSelect>}</div><TableSearch table={table} /><div ref={tableElement} className="overflow-hidden rounded-xl border border-border" /></div></div>
     </div></div><CarLoader targetId="finance-tb" show={loading} text={`Loading ${title}`} />
   </>;
 }

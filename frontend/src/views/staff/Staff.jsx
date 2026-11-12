@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Controller, FormProvider, useForm } from "react-hook-form";
+import { FormProvider, useForm } from "react-hook-form";
 import { TriangleAlert, UserRoundPlus } from "lucide-react";
 import { TabulatorFull as Tabulator } from "tabulator-tables";
-import Flatpickr from "react-flatpickr";
 
 import FieldError from "@/components/ErrorField";
 import TableSearch from "@/components/TableSearch";
@@ -15,7 +14,6 @@ import axiosClient from "@/axios-client";
 import Select2 from "../../components/Select2";
 
 import "tabulator-tables/dist/css/tabulator.min.css";
-import "flatpickr/dist/flatpickr.min.css";
 
 const EMPTY_FORM = {
   employee_code: "",
@@ -33,13 +31,6 @@ const EMPTY_FORM = {
   status: true,
 };
 
-// Keep options outside the component so they remain stable.
-const DATE_OPTIONS = {
-  dateFormat: "Y-m-d",
-  disableMobile: true,
-  allowInput: false,
-  static: true,
-};
 
 const PERSONAL_FIELDS = [
   {
@@ -105,7 +96,6 @@ export default function Staff() {
 
   const {
     register,
-    control,
     handleSubmit,
     reset,
     clearErrors,
@@ -674,36 +664,7 @@ export default function Staff() {
                             Joining Date
                           </label>
 
-                          <Controller
-                            name="joining_date"
-                            control={control}
-                            rules={{
-                              required: "Joining date is required",
-                            }}
-                            render={({ field }) => (
-                              <Flatpickr
-                                id="joining_date"
-                                name={field.name}
-                                value={field.value || ""}
-                                options={DATE_OPTIONS}
-                                disabled={isBusy}
-                                placeholder="Select joining date"
-                                className={`custom-input-sm w-full ${
-                                  errors.joining_date ? "border-red-400" : ""
-                                }`}
-                                aria-invalid={!!errors.joining_date}
-                                onChange={(_, dateString) => {
-                                  field.onChange(dateString);
-                                }}
-                                onClose={() => {
-                                  field.onBlur();
-                                }}
-                                onReady={(_, __, instance) => {
-                                  field.ref(instance.input);
-                                }}
-                              />
-                            )}
-                          />
+                          <Input id="joining_date" type="date" disabled={isBusy} placeholder="Select joining date" aria-invalid={!!errors.joining_date} {...register("joining_date", { required: "Joining date is required" })} />
 
                           <FieldError errors={errors} name="joining_date" />
                         </div>

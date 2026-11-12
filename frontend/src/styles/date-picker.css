@@ -1,0 +1,30 @@
+.date-picker,.date-range-field{position:relative;min-width:0;width:100%;max-width:100%}
+.date-picker .date-picker-input{width:100%;min-width:0;max-width:100%;padding-right:34px;cursor:pointer;text-overflow:ellipsis}
+.date-picker-clear{position:absolute;right:5px;top:5px;display:grid;place-items:center;width:30px;height:30px;border-radius:6px;color:var(--muted-foreground);background:transparent;cursor:pointer}
+.date-picker-clear:hover{background:var(--muted);color:var(--foreground)}
+.date-picker-clear:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
+.date-picker-clear:disabled{opacity:.4;cursor:not-allowed}
+.date-picker .flatpickr-wrapper{display:block;width:100%;min-width:0}
+.flatpickr-calendar{max-width:calc(100vw - 16px);border:1px solid var(--border)!important;box-shadow:0 12px 32px #0003!important;z-index:100!important}
+.flatpickr-calendar.static{right:0;left:auto;top:calc(100% + 6px)}
+.flatpickr-innerContainer,.flatpickr-rContainer,.flatpickr-days,.flatpickr-weekdays{width:100%!important;min-width:0}
+.flatpickr-days .dayContainer{width:100%;min-width:0;max-width:none}
+.flatpickr-day{max-width:none;flex-basis:14.285714%}
+.flatpickr-time,.flatpickr-time input,.flatpickr-time .flatpickr-am-pm,.flatpickr-time .flatpickr-time-separator,.flatpickr-current-month input.cur-year{background:var(--popover)!important;color:var(--foreground)!important}
+.flatpickr-time input:hover,.flatpickr-time input:focus,.flatpickr-time .flatpickr-am-pm:hover{background:var(--muted)!important}
+.flatpickr-time{border-top-color:var(--border)!important}
+.flatpickr-day.inRange{background:var(--accent)!important;color:var(--accent-foreground)!important;border-color:var(--accent)!important;box-shadow:-5px 0 0 var(--accent),5px 0 0 var(--accent)!important}
+.flatpickr-day.startRange,.flatpickr-day.endRange,.flatpickr-day.selected{background:var(--primary)!important;color:var(--primary-foreground)!important;border-color:var(--primary)!important;box-shadow:none!important}
+.numInputWrapper span{border-color:var(--border)!important}.numInputWrapper:hover{background:var(--muted)!important}
+.flatpickr-current-month .flatpickr-monthDropdown-months option{background:var(--popover);color:var(--foreground)}
+
+/* Drawer calendars participate in the scrollable form rather than hiding under its fixed footer. */
+.date-picker .flatpickr-calendar.static{position:relative!important;top:auto;left:0;right:auto;max-width:100%!important;margin-top:6px}
+
+.date-picker .flatpickr-calendar.static{scroll-margin-block:16px}
+
+.flatpickr-current-month{display:flex;align-items:center;justify-content:center;gap:2px;height:34px!important;padding-top:0!important;font-size:15px!important}
+.flatpickr-current-month .flatpickr-monthDropdown-months{min-width:0;max-width:calc(100% - 65px);margin:0!important;padding:0!important;font-size:inherit!important}
+.flatpickr-current-month .numInputWrapper{flex:0 0 65px;width:65px}
+.flatpickr-current-month input.cur-year{min-width:0!important;width:100%!important;padding:0 .4ch!important}
+.date-picker .flatpickr-calendar.static.open{animation:none!important}
