@@ -1,3 +1,6 @@
+import UserAvatar from "./UserAvatar";
+import { useContext } from "react";
+import { BusinessBrandContext } from "@/contexts/business-brand-context";
 import { useEffect, useState } from "react";
 import { useLocation, Link } from "react-router-dom";
 import SessionTimer from "./SessionTimer";
@@ -31,16 +34,9 @@ export default function Header({ user, onLogout, setMobileOpen }) {
     window.addEventListener("keydown", searchShortcut);
     return () => window.removeEventListener("keydown", searchShortcut);
   }, []);
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .map((n) => n[0])
-        .slice(0, 2)
-        .join("")
-        .toUpperCase()
-    : "U";
+  const branding = useContext(BusinessBrandContext);
   const current =
-    navigationItems.find((item) => item.to === pathname)?.label || "Workspace";
+    (pathname === "/my-profile" ? "My profile" : navigationItems.find((item) => item.to === pathname)?.label) || "Workspace";
   return (
     <header className="app-header">
       <div className="header-trail">
@@ -53,7 +49,7 @@ export default function Header({ user, onLogout, setMobileOpen }) {
         >
           <Menu />
         </Button>
-        <span className="muted header-workspace">IntelliRide</span>
+        <span className="muted header-workspace">{branding?.name || "IntelliRide"}</span>
         <ChevronRight size={14} className="header-workspace muted" />
         <span>{current}</span>
       </div>
@@ -90,15 +86,17 @@ export default function Header({ user, onLogout, setMobileOpen }) {
         <div className="header-divider" />
         <details className="profile-menu">
           <summary aria-label="Account menu">
-            <span className="avatar">{initials}</span>
+            <UserAvatar user={user} />
             <span className="profile-copy">
-              <strong>{user?.name || "My account"}</strong>
+              <strong>{user?.display_name || user?.name || "My account"}</strong>
               <small>Account</small>
             </span>
           </summary>
           <div className="profile-popover">
-            <strong>{user?.name}</strong>
+            <strong>{user?.display_name || user?.name}</strong>
             <p>{user?.email}</p>
+            <Link to="/my-profile" className="profile-settings-link"><Settings2 size={16} /> My profile</Link>
+            {user?.can_manage_business && <Link to="/company-settings" className="profile-settings-link"><Settings2 size={16} /> Company settings</Link>}
             <Link to="/settings" className="profile-settings-link">
               <Settings2 size={16} /> Appearance & settings
             </Link>
@@ -136,6 +134,7 @@ export default function Header({ user, onLogout, setMobileOpen }) {
             </div>
             <div className="search-results">
               {navigationItems
+                .filter(i => !i.adminOnly || user?.can_manage_business)
                 .filter((i) =>
                   i.label.toLowerCase().includes(query.toLowerCase()),
                 )

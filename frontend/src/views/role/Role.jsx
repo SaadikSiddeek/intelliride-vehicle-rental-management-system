@@ -471,7 +471,7 @@ export default function Role() {
               title={isEditing ? "Update Role" : "Create Role"}
               description="Add or update a system role."
               submitText={submitText}
-              onSubmit={handleSubmit(saveRole)}
+              onSubmit={event => { void handleSubmit(saveRole)(event); }}
               size="max-w-2xl"
             >
               {formError && (
@@ -492,7 +492,7 @@ export default function Role() {
               <form
                 noValidate
                 aria-busy={isBusy}
-                onSubmit={handleSubmit(saveRole)}
+                onSubmit={event => { void handleSubmit(saveRole)(event); }}
               >
                 <fieldset
                   disabled={isBusy}

@@ -11,6 +11,8 @@ const Users = lazy(() => import("./views/users/Users"));
 const NotFound = lazy(() => import("./views/NotFound"));
 import DefaultLayout from "./components/DefaultLayout";
 import GuestLayout from "./components/GuestLayout";
+const CompanySettings = lazy(() => import("./views/CompanySettings"));
+const MyProfile = lazy(() => import("./views/MyProfile"));
 const Dashboard = lazy(() => import("./views/Dashboard"));
 const Role = lazy(() => import("./views/role/Role"));
 const Branch = lazy(() => import("./views/branch/Branch"));
@@ -30,6 +32,15 @@ const VehicleRegistration = lazy(
 const Staff = lazy(() => import("./views/staff/Staff"));
 const Department = lazy(() => import("./views/department/Department"));
 const Designation = lazy(() => import("./views/designation/Designation"));
+const Reports = lazy(() => import("./views/reports/Reports"));
+const VehicleDocuments = lazy(() => import("./views/fleetOperations/VehicleDocuments"));
+const Maintenance = lazy(() => import("./views/fleetOperations/Maintenance"));
+const Invoices = lazy(() => import("./views/finance/Invoices"));
+const Payments = lazy(() => import("./views/finance/Payments"));
+const DepositRefunds = lazy(() => import("./views/finance/DepositRefunds"));
+const Return = lazy(() => import("./views/returns/Return"));
+const ActiveRental = lazy(() => import("./views/activeRentals/ActiveRental"));
+const Booking = lazy(() => import("./views/bookings/Booking"));
 const Customer = lazy(() => import("./views/customers/Customer"));
 const RentalPackage = lazy(() => import("./views/rentalPackage/RentalPackage"));
 
@@ -44,6 +55,8 @@ const router = createBrowserRouter([
       { path: "/ai/agent", element: <AIAgent /> },
       { path: "/ai/chatbot", element: <AIChatbot /> },
       { path: "/settings", element: <Settings /> },
+      { path: "/company-settings", element: <CompanySettings /> },
+      { path: "/my-profile", element: <MyProfile /> },
       {
         path: "/dashboard",
         element: <Dashboard />,
@@ -112,6 +125,45 @@ const router = createBrowserRouter([
         path: "/designation-management/manage",
         element: <Designation />,
         name: "designation",
+      },
+      {
+        path: "/reports/:type",
+        element: <Reports />,
+      },
+      {
+        path: "/vehicle-document-management/manage",
+        element: <VehicleDocuments />,
+      },
+      {
+        path: "/maintenance-management/manage",
+        element: <Maintenance />,
+      },
+      {
+        path: "/invoice-management/manage",
+        element: <Invoices />,
+      },
+      {
+        path: "/payment-management/manage",
+        element: <Payments />,
+      },
+      {
+        path: "/deposit-refund-management/manage",
+        element: <DepositRefunds />,
+      },
+      {
+        path: "/return-management/manage",
+        element: <Return />,
+        name: "return",
+      },
+      {
+        path: "/active-rental-management/manage",
+        element: <ActiveRental />,
+        name: "activeRental",
+      },
+      {
+        path: "/booking-management/manage",
+        element: <Booking />,
+        name: "booking",
       },
       {
         path: "/customer-management/manage",

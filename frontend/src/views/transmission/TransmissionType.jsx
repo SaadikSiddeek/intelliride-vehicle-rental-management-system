@@ -479,7 +479,7 @@ export default function TransmissionType() {
               }
               description="Add or update a vehicle transmission type."
               submitText={submitText}
-              onSubmit={handleSubmit(saveVehicleTransmission)}
+              onSubmit={event => { void handleSubmit(saveVehicleTransmission)(event); }}
               size="max-w-2xl"
             >
               {formError && (
@@ -500,7 +500,7 @@ export default function TransmissionType() {
               <form
                 noValidate
                 aria-busy={isBusy}
-                onSubmit={handleSubmit(saveVehicleTransmission)}
+                onSubmit={event => { void handleSubmit(saveVehicleTransmission)(event); }}
               >
                 <fieldset
                   disabled={isBusy}

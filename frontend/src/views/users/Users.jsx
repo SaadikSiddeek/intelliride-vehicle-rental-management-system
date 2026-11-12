@@ -6,7 +6,7 @@ import { TabulatorFull as Tabulator } from "tabulator-tables";
 import FieldError from "@/components/ErrorField";
 import TableSearch from "@/components/TableSearch";
 import FormSection from "@/components/forms/FormSection";
-import { Input, NativeSelect } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import PageHeader from "@/components/PageHeader";
 
 import axiosClient from "../../axios-client";
@@ -15,7 +15,7 @@ import CustomDrawer from "../../components/Drawer";
 import Select2 from "../../components/Select2";
 
 import "tabulator-tables/dist/css/tabulator.min.css";
-import { toast } from "sonner";
+
 
 // reset() returns the form to these empty values.
 const DEFAULT_VALUES = {
@@ -424,7 +424,7 @@ export default function Users() {
                   : "Enter the details for a new system user."
               }
               submitText={submitText}
-              onSubmit={handleSubmit(saveUser)}
+              onSubmit={event => { void handleSubmit(saveUser)(event); }}
               size="max-w-2xl"
             >
               {formError && (
@@ -450,7 +450,7 @@ export default function Users() {
 
               <FormProvider {...methods}>
                 <form
-                  onSubmit={handleSubmit(saveUser)}
+                  onSubmit={event => { void handleSubmit(saveUser)(event); }}
                   aria-busy={isBusy}
                   noValidate
                 >

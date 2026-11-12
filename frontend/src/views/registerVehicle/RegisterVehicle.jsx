@@ -118,20 +118,20 @@ function getErrorMessage(error, fallback) {
 // IMAGE FUNCTIONALITY:
 // Release each temporary URL when its preview is removed.
 function NewImagePreview({ file, onRemove }) {
-  const [url, setUrl] = useState("");
+  const imageRef = useRef(null);
 
   useEffect(() => {
     const objectUrl = URL.createObjectURL(file);
-    setUrl(objectUrl);
+    if (imageRef.current) imageRef.current.src = objectUrl;
 
     return () => URL.revokeObjectURL(objectUrl);
   }, [file]);
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card">
-      {url && (
+      {(
         <img
-          src={url}
+          ref={imageRef}
           alt={`New vehicle photo: ${file.name}`}
           className="h-28 w-full object-cover"
         />
@@ -1420,6 +1420,9 @@ export default function VehicleRegistration() {
                             <option value="">Select vehicle status</option>
                             <option value="Available">Available</option>
                             <option value="Rented">Rented</option>
+                            <option value="Inspection Required">Inspection Required</option>
+                            <option value="Cleaning">Cleaning</option>
+                            <option value="Maintenance">Maintenance</option>
                             <option value="Under Maintenance">
                               Under Maintenance
                             </option>

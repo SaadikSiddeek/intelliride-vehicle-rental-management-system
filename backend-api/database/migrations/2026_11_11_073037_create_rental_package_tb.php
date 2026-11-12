@@ -11,7 +11,9 @@ return new class extends Migration
     {
         // Match the actual MySQL type of vehicle_tb.ID.
         // This supports both increments('ID') and bigIncrements('ID').
-        $vehicleKey = DB::selectOne(
+        $vehicleKey = DB::getDriverName() === 'sqlite'
+            ? (Schema::hasColumn('vehicle_tb', 'ID') ? (object) ['data_type' => 'bigint', 'column_type' => 'bigint unsigned'] : null)
+            : DB::selectOne(
             'SELECT DATA_TYPE AS data_type, COLUMN_TYPE AS column_type
              FROM information_schema.COLUMNS
              WHERE TABLE_SCHEMA = DATABASE()

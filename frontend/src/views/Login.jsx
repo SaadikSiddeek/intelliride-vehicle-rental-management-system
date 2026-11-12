@@ -68,7 +68,7 @@ export default function Login() {
           ))}
         </div>
       )}
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
+      <form onSubmit={event => { void handleSubmit(onSubmit)(event); }} noValidate className="space-y-5">
         <div>
           <label htmlFor="login-email" className="field-label">
             Email address

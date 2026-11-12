@@ -6,6 +6,7 @@ import Sidebar from "./Sidebar";
 import Header from "../components/Header";
 import { useTheme } from "../contexts/theme-context";
 import Brand from "./layout/Brand";
+import FloatingCalculator from "./calculator/FloatingCalculator";
 
 export default function DefaultLayout() {
   const { user, token, setToken, authLoading } = useStateContext();
@@ -60,6 +61,7 @@ export default function DefaultLayout() {
         Skip to content
       </a>
 
+      <FloatingCalculator />
       <Sidebar
         onLogout={onLogout}
         sidebarOpen={sidebarOpen}

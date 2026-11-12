@@ -1,3 +1,4 @@
+import { useStateContext } from "@/contexts/ContextProvider";
 import { NavLink } from "react-router-dom";
 import { PanelLeftClose, PanelLeftOpen, X, LogOut } from "lucide-react";
 import { navigation } from "./layout/navigation";
@@ -17,6 +18,7 @@ export default function Sidebar({
   setMobileOpen,
   onLogout,
 }) {
+  const { user } = useStateContext();
   const content = (expanded, mobile = false) => (
     <>
       <div className="sidebar-brand">
@@ -45,7 +47,7 @@ export default function Sidebar({
             ) : (
               <div className="nav-divider" />
             )}
-            {group.items.map(({ label, to, icon: Icon }) => (
+            {group.items.filter(item => !item.adminOnly || user?.can_manage_business).map(({ label, to, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}

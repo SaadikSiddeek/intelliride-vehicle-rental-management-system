@@ -37,6 +37,9 @@ class RegisterVehicleController extends Controller
         'Rented',
 
         'Under Maintenance',
+        'Maintenance',
+        'Inspection Required',
+        'Cleaning',
 
         'Out of Service',
 
@@ -608,6 +611,12 @@ class RegisterVehicleController extends Controller
             $data['mileage'] = ($data['mileage'] === null || $data['mileage'] === '')
                 ? 0
                 : $data['mileage'];
+
+            // Optional legacy display rates use the existing NOT NULL database default.
+            // Booking charges continue to come from Rental Package snapshots.
+            foreach (['weekly_rate', 'monthly_rate'] as $rateColumn) {
+                if ($data[$rateColumn] === null || $data[$rateColumn] === '') $data[$rateColumn] = '0.00';
+            }
 
             $data['updated_at'] = now();
 

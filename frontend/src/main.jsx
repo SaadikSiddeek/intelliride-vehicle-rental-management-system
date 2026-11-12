@@ -6,6 +6,7 @@ import "./index.css";
 import "flatpickr/dist/flatpickr.min.css";
 
 import router from "./router";
+import BusinessBrandProvider from "./contexts/BusinessBrandProvider";
 import { ContextProvider } from "./contexts/ContextProvider";
 import { ThemeProvider } from "./contexts/ThemeProvider";
 
@@ -16,7 +17,7 @@ createRoot(document.getElementById("root")).render(
   <StrictMode>
     <ThemeProvider>
       <ContextProvider>
-        <Suspense
+        <BusinessBrandProvider><Suspense
           fallback={
             <div className="app-opening" role="status">
               <Brand compact />
@@ -25,7 +26,7 @@ createRoot(document.getElementById("root")).render(
           }
         >
           <RouterProvider router={router} />
-        </Suspense>
+        </Suspense></BusinessBrandProvider>
 
         <AppToaster />
       </ContextProvider>

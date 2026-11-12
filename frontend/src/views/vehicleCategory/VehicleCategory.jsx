@@ -487,7 +487,7 @@ export default function VehicleCategory() {
               }
               description="Add or update a vehicle category."
               submitText={submitText}
-              onSubmit={handleSubmit(saveVehicleCategory)}
+              onSubmit={event => { void handleSubmit(saveVehicleCategory)(event); }}
               size="max-w-2xl"
             >
               {formError && (
@@ -508,7 +508,7 @@ export default function VehicleCategory() {
               <form
                 noValidate
                 aria-busy={isBusy}
-                onSubmit={handleSubmit(saveVehicleCategory)}
+                onSubmit={event => { void handleSubmit(saveVehicleCategory)(event); }}
               >
                 <fieldset
                   disabled={isBusy}

@@ -469,7 +469,7 @@ export default function VehicleFeature() {
               }
               description="Add or update a vehicle feature."
               submitText={submitText}
-              onSubmit={handleSubmit(saveVehicleFeature)}
+              onSubmit={event => { void handleSubmit(saveVehicleFeature)(event); }}
               size="max-w-2xl"
             >
               {formError && (
@@ -490,7 +490,7 @@ export default function VehicleFeature() {
               <form
                 noValidate
                 aria-busy={isBusy}
-                onSubmit={handleSubmit(saveVehicleFeature)}
+                onSubmit={event => { void handleSubmit(saveVehicleFeature)(event); }}
               >
                 <fieldset
                   disabled={isBusy}

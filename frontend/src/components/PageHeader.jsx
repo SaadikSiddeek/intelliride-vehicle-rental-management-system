@@ -1,13 +1,11 @@
-import { sampleModules } from "./layout/module-status";
-import { Link, useLocation } from "react-router-dom";
-import { ChevronRight, House, Info } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ChevronRight, House } from "lucide-react";
 export default function PageHeader({
   title,
   sub_text,
   breadcrumbs = [],
   children,
 }) {
-  const { pathname } = useLocation();
   return (
     <div className="page-header">
       <nav aria-label="Breadcrumb">

@@ -86,17 +86,7 @@ export default function VehicleBrand() {
 
   // IMAGE FUNCTIONALITY:
   // Release temporary browser URLs when files change or page unmounts.
-  useEffect(() => {
-    if (!selectedLogo) {
-      setLocalPreview("");
-      return;
-    }
-
-    const objectUrl = URL.createObjectURL(selectedLogo);
-    setLocalPreview(objectUrl);
-
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [selectedLogo]);
+  useEffect(() => () => { if (localPreview) URL.revokeObjectURL(localPreview); }, [localPreview]);
 
   const resetImages = useCallback(() => {
     setSelectedLogo(null);
@@ -258,6 +248,7 @@ export default function VehicleBrand() {
     }
 
     setSelectedLogo(file);
+    setLocalPreview(URL.createObjectURL(file));
     setRemoveLogo(false);
   };
 
@@ -611,7 +602,7 @@ export default function VehicleBrand() {
               }
               description="Manage brand details and the brand logo."
               submitText={submitText}
-              onSubmit={handleSubmit(saveVehicleBrand)}
+              onSubmit={event => { void handleSubmit(saveVehicleBrand)(event); }}
               size="max-w-2xl"
             >
               {formError && (
@@ -629,7 +620,7 @@ export default function VehicleBrand() {
               <form
                 noValidate
                 aria-busy={isBusy}
-                onSubmit={handleSubmit(saveVehicleBrand)}
+                onSubmit={event => { void handleSubmit(saveVehicleBrand)(event); }}
               >
                 <fieldset
                   disabled={isBusy}

@@ -7,7 +7,7 @@ import Flatpickr from "react-flatpickr";
 import FieldError from "@/components/ErrorField";
 import TableSearch from "@/components/TableSearch";
 import FormSection from "@/components/forms/FormSection";
-import { Input, Textarea, NativeSelect } from "@/components/ui/input";
+import { Input, Textarea } from "@/components/ui/input";
 import PageHeader from "@/components/PageHeader";
 import CarLoader from "@/components/CarLoader";
 import CustomDrawer from "@/components/Drawer";
@@ -480,7 +480,7 @@ export default function Staff() {
               title={isEditing ? "Update Staff" : "Create Staff"}
               description="Add or update a staff member."
               submitText={submitText}
-              onSubmit={handleSubmit(saveStaff)}
+              onSubmit={event => { void handleSubmit(saveStaff)(event); }}
               size="max-w-3xl"
             >
               {formError && (
@@ -502,7 +502,7 @@ export default function Staff() {
                 <form
                   noValidate
                   aria-busy={isBusy}
-                  onSubmit={handleSubmit(saveStaff)}
+                  onSubmit={event => { void handleSubmit(saveStaff)(event); }}
                 >
                   <fieldset
                     disabled={isBusy}

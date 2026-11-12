@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { Plus, TriangleAlert } from "lucide-react";
 import { TabulatorFull as Tabulator } from "tabulator-tables";
 import "tabulator-tables/dist/css/tabulator.min.css";
@@ -9,6 +9,8 @@ import PageHeader from "@/components/PageHeader";
 import CustomDrawer from "@/components/Drawer";
 import TableSearch from "@/components/TableSearch";
 import FieldError from "@/components/ErrorField";
+import Select2 from "@/components/Select2";
+import FormSection from "@/components/forms/FormSection";
 import CarLoader from "@/components/CarLoader";
 import { Input } from "@/components/ui/input";
 
@@ -51,10 +53,9 @@ const EDIT_BUTTON = `
 
 function Section({ title, children }) {
   return (
-    <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
-      <h3 className="mb-4 text-sm font-semibold text-foreground">{title}</h3>
+    <FormSection title={title}>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>
-    </section>
+    </FormSection>
   );
 }
 
@@ -240,6 +241,7 @@ function PricePreview({ control }) {
 }
 
 export default function RentalPackage() {
+  const methods = useForm({ defaultValues: EMPTY_FORM });
   const {
     register,
     control,
@@ -248,7 +250,7 @@ export default function RentalPackage() {
     setError,
     clearErrors,
     formState: { errors },
-  } = useForm({ defaultValues: EMPTY_FORM });
+  } = methods;
 
   const includedKm = useWatch({ control, name: "included_km_per_unit" });
   const active = useWatch({ control, name: "status" });
@@ -256,7 +258,6 @@ export default function RentalPackage() {
 
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [vehicles, setVehicles] = useState([]);
   const [loadingTable, setLoadingTable] = useState(false);
   const [loadingForm, setLoadingForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -267,6 +268,7 @@ export default function RentalPackage() {
   const tableElement = useRef(null);
   const table = useRef(null);
   const listRequest = useRef(null);
+  const listFilters = useRef({ status: "", billing_unit: "" });
   const formRequest = useRef(null);
 
   const editing = editId !== null;
@@ -282,7 +284,7 @@ export default function RentalPackage() {
     try {
       const { data } = await axiosClient.post(
         "/get_rental_packages",
-        {},
+        listFilters.current,
         { signal: request.signal },
       );
       if (request.signal.aborted) return;
@@ -309,7 +311,6 @@ export default function RentalPackage() {
 
       reset({ ...EMPTY_FORM });
       setEditId(id);
-      setVehicles([]);
       setSuccess("");
       setPageError("");
       setFormError("");
@@ -317,24 +318,10 @@ export default function RentalPackage() {
       setLoadingForm(true);
 
       try {
-        const [vehicleResponse, packageResponse] = await Promise.all([
-          axiosClient.post("/rental_package_vehicles", {}, config),
-          id === null
-            ? Promise.resolve(null)
-            : axiosClient.post(
-                "/fetch_rental_package_data",
-                { upd_id: id },
-                config,
-              ),
-        ]);
-
+        const packageResponse = id === null ? null : await axiosClient.post(
+          "/fetch_rental_package_data", { upd_id: id }, config,
+        );
         if (request.signal.aborted) return;
-
-        const options = vehicleResponse.data;
-        if (!options.status || !Array.isArray(options.data)) {
-          throw new Error("Unable to load vehicles.");
-        }
-        setVehicles(options.data);
 
         if (packageResponse) {
           const result = packageResponse.data;
@@ -601,7 +588,7 @@ export default function RentalPackage() {
               }
               description="Set the rate and rental terms for this vehicle."
               submitText={submitText}
-              onSubmit={handleSubmit(savePackage)}
+              onSubmit={(event) => handleSubmit(savePackage)(event)}
               size="max-w-3xl"
             >
               {formError && (
@@ -615,223 +602,212 @@ export default function RentalPackage() {
                 </p>
               )}
 
-              <form
-                noValidate
-                onSubmit={handleSubmit(savePackage)}
-                aria-busy={busy}
-              >
-                <fieldset
-                  disabled={busy}
-                  className="m-0 min-w-0 space-y-5 border-0 p-0"
+              <FormProvider {...methods}>
+                <form
+                  noValidate
+                  onSubmit={(event) => handleSubmit(savePackage)(event)}
+                  aria-busy={busy}
                 >
-                  <Section title="Package details">
-                    <Field
-                      name="package_name"
-                      label="Package name *"
-                      errors={errors}
-                    >
-                      <Input
-                        id="package_name"
-                        maxLength={100}
-                        className="custom-input-sm"
-                        placeholder="Standard Daily Rental"
-                        aria-invalid={!!errors.package_name}
-                        {...register("package_name", {
-                          required: "Package name is required.",
-                          validate: (value) =>
-                            Boolean(value.trim()) ||
-                            "Package name is required.",
-                        })}
-                      />
-                    </Field>
-
-                    <Field
-                      name="vehicle_id"
-                      label="Vehicle *"
-                      errors={errors}
-                      hint={
-                        !loadingForm && !vehicles.length
-                          ? "Register a vehicle first, then reopen this form."
-                          : ""
-                      }
-                    >
-                      <select
-                        id="vehicle_id"
-                        className={selectClass}
-                        aria-invalid={!!errors.vehicle_id}
-                        {...register("vehicle_id", {
-                          required: "Please select a vehicle.",
-                        })}
+                  <fieldset
+                    disabled={busy}
+                    className="m-0 min-w-0 space-y-5 border-0 p-0"
+                  >
+                    <Section title="Package details">
+                      <Field
+                        name="package_name"
+                        label="Package name *"
+                        errors={errors}
                       >
-                        <option value="">Select a vehicle</option>
-                        {vehicles.map((vehicle) => (
-                          <option key={vehicle.id} value={String(vehicle.id)}>
-                            {vehicle.text}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-
-                    <Field
-                      name="billing_unit"
-                      label="Billing unit *"
-                      errors={errors}
-                    >
-                      <select
-                        id="billing_unit"
-                        className={selectClass}
-                        {...register("billing_unit")}
-                      >
-                        <option value="day">Day (24 hours)</option>
-                        <option value="week">Week (7 days)</option>
-                        <option value="month">Month (30 days)</option>
-                      </select>
-                    </Field>
-
-                    <Field
-                      name="minimum_units"
-                      label="Minimum rental units *"
-                      errors={errors}
-                    >
-                      <Input
-                        id="minimum_units"
-                        type="number"
-                        min="1"
-                        max="365"
-                        step="1"
-                        className="custom-input-sm"
-                        aria-invalid={!!errors.minimum_units}
-                        {...register(
-                          "minimum_units",
-                          integerRules("Minimum rental units", 1, 365),
-                        )}
-                      />
-                    </Field>
-                  </Section>
-
-                  <Section title="Rates and mileage">
-                    <Field
-                      name="rate_per_unit"
-                      label="Rate per unit (LKR) *"
-                      errors={errors}
-                    >
-                      <Input
-                        id="rate_per_unit"
-                        inputMode="decimal"
-                        placeholder="8000.00"
-                        className="custom-input-sm"
-                        aria-invalid={!!errors.rate_per_unit}
-                        {...register(
-                          "rate_per_unit",
-                          moneyRules("Rate per unit", true),
-                        )}
-                      />
-                    </Field>
-
-                    <Field
-                      name="security_deposit"
-                      label="Refundable security deposit (LKR) *"
-                      errors={errors}
-                    >
-                      <Input
-                        id="security_deposit"
-                        inputMode="decimal"
-                        className="custom-input-sm"
-                        aria-invalid={!!errors.security_deposit}
-                        {...register(
-                          "security_deposit",
-                          moneyRules("Security deposit"),
-                        )}
-                      />
-                    </Field>
-
-                    <Field
-                      name="included_km_per_unit"
-                      label="Included kilometres per unit"
-                      errors={errors}
-                      hint="Leave blank for unlimited mileage. Enter 0 to charge from the first kilometre."
-                    >
-                      <Input
-                        id="included_km_per_unit"
-                        type="number"
-                        min="0"
-                        step="1"
-                        placeholder="Unlimited"
-                        className="custom-input-sm"
-                        aria-invalid={!!errors.included_km_per_unit}
-                        {...register(
-                          "included_km_per_unit",
-                          integerRules("Included kilometres", 0, 1000000, true),
-                        )}
-                      />
-                    </Field>
-
-                    <Field
-                      name="extra_km_charge"
-                      label="Extra kilometre charge (LKR)"
-                      errors={errors}
-                    >
-                      {unlimited ? (
                         <Input
-                          id="extra_km_charge"
-                          value="0.00"
-                          readOnly
+                          id="package_name"
+                          maxLength={100}
                           className="custom-input-sm"
-                        />
-                      ) : (
-                        <Input
-                          id="extra_km_charge"
-                          inputMode="decimal"
-                          className="custom-input-sm"
-                          aria-invalid={!!errors.extra_km_charge}
-                          {...register("extra_km_charge", {
-                            validate: (value, allValues) =>
-                              allValues.included_km_per_unit === "" ||
-                              MONEY_PATTERN.test(String(value ?? "")) ||
-                              "Enter a valid extra kilometre charge, such as 75.00.",
+                          placeholder="Standard Daily Rental"
+                          aria-invalid={!!errors.package_name}
+                          {...register("package_name", {
+                            required: "Package name is required.",
+                            validate: (value) =>
+                              Boolean(value.trim()) ||
+                              "Package name is required.",
                           })}
                         />
-                      )}
-                    </Field>
-                  </Section>
+                      </Field>
 
-                  <div className="flex items-center justify-between gap-4 rounded-xl border border-border p-4">
-                    <div>
-                      <label
-                        htmlFor="package_status"
-                        className="text-sm font-semibold"
+                      <Field
+                        name="vehicle_id"
+                        label="Vehicle *"
+                        errors={{}}
                       >
-                        Active status
+                        <Select2
+                          name="vehicle_id"
+                          endpoint="/rental_package_vehicles"
+                          placeholder="Search vehicle number, brand or model..."
+                          disabled={busy}
+                          rules={{ required: "Please select a vehicle." }}
+                        />
+                      </Field>
+
+                      <Field
+                        name="billing_unit"
+                        label="Billing unit *"
+                        errors={errors}
+                      >
+                        <select
+                          id="billing_unit"
+                          className={selectClass}
+                          {...register("billing_unit")}
+                        >
+                          <option value="day">Day (24 hours)</option>
+                          <option value="week">Week (7 days)</option>
+                          <option value="month">Month (30 days)</option>
+                        </select>
+                      </Field>
+
+                      <Field
+                        name="minimum_units"
+                        label="Minimum rental units *"
+                        errors={errors}
+                      >
+                        <Input
+                          id="minimum_units"
+                          type="number"
+                          min="1"
+                          max="365"
+                          step="1"
+                          className="custom-input-sm"
+                          aria-invalid={!!errors.minimum_units}
+                          {...register(
+                            "minimum_units",
+                            integerRules("Minimum rental units", 1, 365),
+                          )}
+                        />
+                      </Field>
+                    </Section>
+
+                    <Section title="Rates and mileage">
+                      <Field
+                        name="rate_per_unit"
+                        label="Rate per unit (LKR) *"
+                        errors={errors}
+                      >
+                        <Input
+                          id="rate_per_unit"
+                          inputMode="decimal"
+                          placeholder="8000.00"
+                          className="custom-input-sm"
+                          aria-invalid={!!errors.rate_per_unit}
+                          {...register(
+                            "rate_per_unit",
+                            moneyRules("Rate per unit", true),
+                          )}
+                        />
+                      </Field>
+
+                      <Field
+                        name="security_deposit"
+                        label="Refundable security deposit (LKR) *"
+                        errors={errors}
+                      >
+                        <Input
+                          id="security_deposit"
+                          inputMode="decimal"
+                          className="custom-input-sm"
+                          aria-invalid={!!errors.security_deposit}
+                          {...register(
+                            "security_deposit",
+                            moneyRules("Security deposit"),
+                          )}
+                        />
+                      </Field>
+
+                      <Field
+                        name="included_km_per_unit"
+                        label="Included kilometres per unit"
+                        errors={errors}
+                        hint="Leave blank for unlimited mileage. Enter 0 to charge from the first kilometre."
+                      >
+                        <Input
+                          id="included_km_per_unit"
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder="Unlimited"
+                          className="custom-input-sm"
+                          aria-invalid={!!errors.included_km_per_unit}
+                          {...register(
+                            "included_km_per_unit",
+                            integerRules("Included kilometres", 0, 1000000, true),
+                          )}
+                        />
+                      </Field>
+
+                      <Field
+                        name="extra_km_charge"
+                        label="Extra kilometre charge (LKR)"
+                        errors={errors}
+                      >
+                        {unlimited ? (
+                          <Input
+                            id="extra_km_charge"
+                            value="0.00"
+                            readOnly
+                            className="custom-input-sm"
+                          />
+                        ) : (
+                          <Input
+                            id="extra_km_charge"
+                            inputMode="decimal"
+                            className="custom-input-sm"
+                            aria-invalid={!!errors.extra_km_charge}
+                            {...register("extra_km_charge", {
+                              validate: (value, allValues) =>
+                                allValues.included_km_per_unit === "" ||
+                                MONEY_PATTERN.test(String(value ?? "")) ||
+                                "Enter a valid extra kilometre charge, such as 75.00.",
+                            })}
+                          />
+                        )}
+                      </Field>
+                    </Section>
+
+                    <div className="flex items-center justify-between gap-4 rounded-xl border border-border p-4">
+                      <div>
+                        <label
+                          htmlFor="package_status"
+                          className="text-sm font-semibold"
+                        >
+                          Active status
+                        </label>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {active
+                            ? "Available for new bookings."
+                            : "Inactive for new bookings."}
+                        </p>
+                        <FieldError errors={errors} name="status" />
+                      </div>
+
+                      <label className="relative inline-flex cursor-pointer items-center">
+                        <input
+                          id="package_status"
+                          type="checkbox"
+                          className="peer sr-only"
+                          {...register("status")}
+                        />
+                        <span
+                          aria-hidden="true"
+                          className="h-6 w-11 rounded-full bg-secondary transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary"
+                        />
+                        <span
+                          aria-hidden="true"
+                          className="absolute left-1 top-1 h-4 w-4 rounded-full bg-card shadow-sm transition-transform peer-checked:translate-x-5"
+                        />
                       </label>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {active
-                          ? "Available for new bookings."
-                          : "Inactive for new bookings."}
-                      </p>
-                      <FieldError errors={errors} name="status" />
                     </div>
 
-                    <label className="relative inline-flex cursor-pointer items-center">
-                      <input
-                        id="package_status"
-                        type="checkbox"
-                        className="peer sr-only"
-                        {...register("status")}
-                      />
-                      <span
-                        aria-hidden="true"
-                        className="h-6 w-11 rounded-full bg-secondary transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary"
-                      />
-                      <span
-                        aria-hidden="true"
-                        className="absolute left-1 top-1 h-4 w-4 rounded-full bg-card shadow-sm transition-transform peer-checked:translate-x-5"
-                      />
-                    </label>
-                  </div>
-
-                  {open && <PricePreview control={control} />}
-                </fieldset>
-              </form>
+                    {open && <PricePreview control={control} />}
+                  </fieldset>
+                </form>
+              </FormProvider>
             </CustomDrawer>
 
             <div className="xl:col-span-12">
@@ -854,6 +830,17 @@ export default function RentalPackage() {
                   className="relative p-6"
                   aria-busy={loadingTable}
                 >
+                  <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {[['status', 'Package status', [['1', 'Active'], ['0', 'Inactive']]], ['billing_unit', 'Billing unit', Object.entries(UNIT_LABELS)]].map(([name, label, options]) => (
+                      <select key={name} aria-label={label} className="custom-input-sm" defaultValue="" onChange={(event) => {
+                        listFilters.current[name] = event.target.value;
+                        void loadTable();
+                      }}>
+                        <option value="">{name === 'status' ? 'All package statuses' : 'All billing units'}</option>
+                        {options.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
+                      </select>
+                    ))}
+                  </div>
                   <TableSearch table={table} />
                   <div
                     ref={tableElement}

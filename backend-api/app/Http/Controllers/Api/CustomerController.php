@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -40,12 +41,7 @@ class CustomerController extends Controller
 
     private function documentDisk()
     {
-        return Storage::build([
-            'driver' => 'local',
-            'root' => storage_path('app/private/customer-documents'),
-            'visibility' => 'private',
-            'throw' => true,
-        ]);
+        return Storage::disk('customer_documents');
     }
 
     private function cleanFiles($disk, array $paths): void
@@ -293,8 +289,26 @@ class CustomerController extends Controller
     {
         $this->authorizeStaff($request);
 
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:150'],
+            'status' => ['nullable', Rule::in(['Active', 'Inactive', 'Blocked'])],
+            'customer_type' => ['nullable', Rule::in(['Local', 'Tourist'])],
+        ]);
+
         try {
-            $customers = DB::table('customer_tb')
+            $query = Customer::query();
+            foreach (['status', 'customer_type'] as $field) {
+                if (!empty($filters[$field])) $query->where($field, $filters[$field]);
+            }
+            if (!empty($filters['q'])) {
+                $search = '%'.$filters['q'].'%';
+                $query->where(function ($query) use ($search) {
+                    $query->where('full_name', 'like', $search)
+                        ->orWhere('mobile', 'like', $search)
+                        ->orWhere('email', 'like', $search);
+                });
+            }
+            $customers = $query
                 ->orderByDesc('ID')
                 ->get([
                     'ID as id',
@@ -373,6 +387,26 @@ class CustomerController extends Controller
                 'message' => 'Unable to fetch customer. Please try again.',
             ], 500);
         }
+    }
+
+    // Select2 response follows InputFiltersController's id/text convention.
+    public function customerInputFilter(Request $request)
+    {
+        $this->authorizeStaff($request);
+        $filters = $request->validate([
+            'id' => ['nullable', 'integer', 'min:1'],
+            'q' => ['nullable', 'string', 'max:150'],
+        ]);
+        $query = Customer::query()->where('status', 'Active');
+        if (isset($filters['id'])) {
+            $query->where('ID', $filters['id']);
+        } elseif (!empty($filters['q'])) {
+            $search = '%'.$filters['q'].'%';
+            $query->where(fn ($q) => $q->where('full_name', 'like', $search)->orWhere('mobile', 'like', $search));
+        }
+        $options = $query->orderBy('full_name')->limit(20)->get(['ID', 'full_name', 'mobile'])
+            ->map(fn ($customer) => ['id' => $customer->ID, 'text' => $customer->full_name.' — '.$customer->mobile]);
+        return response()->json(['success' => true, 'data' => $options])->header('Cache-Control', 'private, no-store');
     }
 
     // ================= PRIVATE DOCUMENT DOWNLOAD =================

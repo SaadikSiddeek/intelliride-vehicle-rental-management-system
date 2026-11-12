@@ -6,7 +6,7 @@ import { TabulatorFull as Tabulator } from "tabulator-tables";
 import FieldError from "@/components/ErrorField";
 import TableSearch from "@/components/TableSearch";
 import FormSection from "@/components/forms/FormSection";
-import { Input, Textarea, NativeSelect } from "@/components/ui/input";
+import { Input, Textarea } from "@/components/ui/input";
 import PageHeader from "@/components/PageHeader";
 import CarLoader from "@/components/CarLoader";
 import CustomDrawer from "@/components/Drawer";
@@ -429,7 +429,7 @@ export default function Branch() {
               title={isEditing ? "Update Branch" : "Create Branch"}
               description="Add or update a company branch."
               submitText={submitText}
-              onSubmit={handleSubmit(saveBranch)}
+              onSubmit={event => { void handleSubmit(saveBranch)(event); }}
               size="max-w-3xl"
             >
               {formError && (
@@ -451,7 +451,7 @@ export default function Branch() {
                 <form
                   noValidate
                   aria-busy={isBusy}
-                  onSubmit={handleSubmit(saveBranch)}
+                  onSubmit={event => { void handleSubmit(saveBranch)(event); }}
                 >
                   <fieldset
                     disabled={isBusy}

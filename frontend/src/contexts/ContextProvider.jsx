@@ -36,7 +36,8 @@ function isIdle() {
 export function ContextProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, updateToken] = useState(() => localStorage.getItem(TOKEN_KEY));
-  const [authLoading, setAuthLoading] = useState(true);
+  const [validatedToken, setValidatedToken] = useState(null);
+  const authLoading = Boolean(token && validatedToken !== token);
   const [sessionExpired, setSessionExpired] = useState(false);
 
   const clearSession = useCallback((expired = false) => {
@@ -44,7 +45,7 @@ export function ContextProvider({ children }) {
 
     setUser(null);
     updateToken(null);
-    setAuthLoading(false);
+    setValidatedToken(null);
     setSessionExpired(expired);
   }, []);
 
@@ -93,10 +94,7 @@ export function ContextProvider({ children }) {
   }, [clearSession]);
 
   useEffect(() => {
-    if (!token) {
-      setAuthLoading(false);
-      return;
-    }
+    if (!token) return;
 
     let cancelled = false;
     let expiring = false;
@@ -119,11 +117,11 @@ export function ContextProvider({ children }) {
     };
 
     if (isIdle()) {
-      expireSession();
-      return;
+      const idleTimer = window.setTimeout(expireSession, 0);
+      return () => window.clearTimeout(idleTimer);
     }
 
-    setAuthLoading(true);
+
 
     // Validate the stored token when opening/reloading the app.
     // This endpoint does not renew the inactivity deadline.
@@ -141,7 +139,7 @@ export function ContextProvider({ children }) {
       })
       .finally(() => {
         if (!cancelled) {
-          setAuthLoading(false);
+          setValidatedToken(token);
         }
       });
 

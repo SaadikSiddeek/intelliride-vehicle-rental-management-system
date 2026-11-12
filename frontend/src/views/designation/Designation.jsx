@@ -390,7 +390,7 @@ export default function Designation() {
                   : "Enter the details for a new designation."
               }
               submitText={submitText}
-              onSubmit={handleSubmit(saveDesignation)}
+              onSubmit={event => { void handleSubmit(saveDesignation)(event); }}
               size="max-w-xl"
             >
               <DesignationForm
@@ -399,7 +399,7 @@ export default function Designation() {
                 generalError={formError}
                 formLoading={formLoading}
                 isBusy={isBusy}
-                onSubmit={handleSubmit(saveDesignation)}
+                onSubmit={event => { void handleSubmit(saveDesignation)(event); }}
               />
             </CustomDrawer>
 

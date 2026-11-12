@@ -29,6 +29,18 @@ return [
     */
 
     'disks' => [
+        'business_assets' => ['driver'=>'local','root'=>storage_path('app/private/business-assets'),'throw'=>true],
+        'fleet_documents' => ['driver' => 'local', 'root' => storage_path('app/private/fleet-documents'), 'visibility' => 'private', 'throw' => true],
+        'rental_documents' => [
+            'driver' => 'local', 'root' => storage_path('app/private/rental-documents'),
+            'visibility' => 'private', 'throw' => true,
+        ],
+        'customer_documents' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/customer-documents'),
+            'visibility' => 'private',
+            'throw' => true,
+        ],
 
         'local' => [
             'driver' => 'local',

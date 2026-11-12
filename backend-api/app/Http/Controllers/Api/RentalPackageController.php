@@ -16,13 +16,25 @@ class RentalPackageController extends Controller
 
     // ================= VEHICLE DROPDOWN =================
 
-    public function getPackageVehicles()
+    public function getPackageVehicles(Request $request)
     {
+        $filters = $request->validate([
+            'id' => ['nullable', 'integer', 'min:1'],
+            'q' => ['nullable', 'string', 'max:100'],
+        ]);
         try {
-            $vehicles = DB::table('vehicle_tb as v')
+            $query = DB::table('vehicle_tb as v')
                 ->leftJoin('vehicle_model_tb as m', 'm.ID', '=', 'v.model_id')
-                ->leftJoin('vehicle_brand_tb as b', 'b.ID', '=', 'v.brand_id')
-                ->orderBy('v.vehicle_number')
+                ->leftJoin('vehicle_brand_tb as b', 'b.ID', '=', 'v.brand_id');
+            if (isset($filters['id'])) {
+                $query->where('v.ID', $filters['id']);
+            } elseif (!empty($filters['q'])) {
+                $search = '%'.$filters['q'].'%';
+                $query->where(fn ($q) => $q->where('v.vehicle_number', 'like', $search)
+                    ->orWhere('m.model_name', 'like', $search)->orWhere('b.brand_name', 'like', $search));
+            }
+            $vehicles = $query
+                ->orderBy('v.vehicle_number')->limit(20)
                 ->get([
                     'v.ID as id',
                     'v.vehicle_number',
@@ -45,6 +57,7 @@ class RentalPackageController extends Controller
 
             return response()->json([
                 'status' => true,
+                'success' => true,
                 'data' => $vehicles,
                 'message' => 'Vehicles retrieved successfully.',
             ]);
@@ -197,10 +210,24 @@ class RentalPackageController extends Controller
 
     // ================= GET TABLE RECORDS =================
 
-    public function getRentalPackages()
+    public function getRentalPackages(Request $request)
     {
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', 'boolean'],
+            'billing_unit' => ['nullable', Rule::in(['day', 'week', 'month'])],
+            'vehicle_id' => ['nullable', 'integer', 'min:1'],
+        ]);
         try {
-            $packages = DB::table(self::TABLE . ' as p')
+            $query = DB::table(self::TABLE.' as p');
+            foreach (['status', 'billing_unit', 'vehicle_id'] as $field) {
+                if (isset($filters[$field])) $query->where('p.'.$field, $filters[$field]);
+            }
+            if (!empty($filters['q'])) {
+                $search = '%'.$filters['q'].'%';
+                $query->where(fn ($q) => $q->where('p.package_name', 'like', $search)->orWhere('v.vehicle_number', 'like', $search));
+            }
+            $packages = $query
                 ->join('vehicle_tb as v', 'v.ID', '=', 'p.vehicle_id')
                 ->orderByDesc('p.ID')
                 ->get([

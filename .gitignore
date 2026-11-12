@@ -31,3 +31,7 @@ env/
 # Temporary files
 *.tmp
 *.temp
+
+# IntelliRide internal development documentation
+/docs/
+/DEVELOPMENT_PROGRESS.md

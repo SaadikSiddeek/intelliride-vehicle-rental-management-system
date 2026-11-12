@@ -461,7 +461,7 @@ export default function FuelType() {
               title={isEditing ? "Update Fuel Type" : "Create Fuel Type"}
               description="Add or update a vehicle fuel type."
               submitText={submitText}
-              onSubmit={handleSubmit(saveFuelType)}
+              onSubmit={event => { void handleSubmit(saveFuelType)(event); }}
               size="max-w-2xl"
             >
               {formError && (
@@ -482,7 +482,7 @@ export default function FuelType() {
               <form
                 noValidate
                 aria-busy={isBusy}
-                onSubmit={handleSubmit(saveFuelType)}
+                onSubmit={event => { void handleSubmit(saveFuelType)(event); }}
               >
                 <fieldset
                   disabled={isBusy}

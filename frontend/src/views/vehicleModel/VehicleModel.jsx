@@ -5,7 +5,7 @@ import { TabulatorFull as Tabulator } from "tabulator-tables";
 
 import TableSearch from "@/components/TableSearch";
 import FieldError from "@/components/ErrorField";
-import { Input, NativeSelect } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import PageHeader from "@/components/PageHeader";
 import CustomDrawer from "@/components/Drawer";
 import CarLoader from "@/components/CarLoader";
@@ -33,7 +33,6 @@ export default function VehicleModel() {
 
   const [openDrawer, setOpenDrawer] = useState(false);
   const [updateId, setUpdateId] = useState("");
-  const [brands, setBrands] = useState([]);
 
   const [tableLoading, setTableLoading] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
@@ -71,12 +70,6 @@ export default function VehicleModel() {
   } = methods;
 
   const status = useWatch({ control, name: "status" });
-  const selectedBrand = useWatch({ control, name: "brand" });
-  const selectedFuel = useWatch({ control, name: "fuel_type" });
-  const selectedTransmission = useWatch({
-    control,
-    name: "transmission",
-  });
 
   useEffect(() => {
     mounted.current = true;
@@ -116,7 +109,6 @@ export default function VehicleModel() {
         throw new Error(data.message || "Unable to load vehicle models.");
       }
 
-      setBrands(data.brands);
       await table.current?.setData(data.data);
     } catch (error) {
       if (controller.signal.aborted || !mounted.current) return;
@@ -511,7 +503,7 @@ export default function VehicleModel() {
               }
               description="Add or update vehicle model details."
               submitText={submitText}
-              onSubmit={handleSubmit(saveVehicleModel)}
+              onSubmit={event => { void handleSubmit(saveVehicleModel)(event); }}
               size="max-w-3xl"
             >
               {formError && (
@@ -530,7 +522,7 @@ export default function VehicleModel() {
                 <form
                   noValidate
                   aria-busy={isBusy}
-                  onSubmit={handleSubmit(saveVehicleModel)}
+                  onSubmit={event => { void handleSubmit(saveVehicleModel)(event); }}
                 >
                   <fieldset
                     disabled={isBusy}

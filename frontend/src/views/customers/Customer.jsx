@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { Plus, TriangleAlert } from "lucide-react";
 import { TabulatorFull as Tabulator } from "tabulator-tables";
 import "tabulator-tables/dist/css/tabulator.min.css";
@@ -9,6 +9,7 @@ import PageHeader from "@/components/PageHeader";
 import CustomDrawer from "@/components/Drawer";
 import TableSearch from "@/components/TableSearch";
 import FieldError from "@/components/ErrorField";
+import FormSection from "@/components/forms/FormSection";
 import CarLoader from "@/components/CarLoader";
 import { Input, Textarea } from "@/components/ui/input";
 
@@ -57,10 +58,9 @@ const EDIT_BUTTON = `
 
 function Section({ title, children }) {
   return (
-    <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
-      <h3 className="mb-4 text-sm font-semibold text-foreground">{title}</h3>
+    <FormSection title={title}>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>
-    </section>
+    </FormSection>
   );
 }
 
@@ -82,6 +82,10 @@ function FormField({
       Boolean(String(value ?? "").trim()) ||
       `${label} is required.`,
   };
+
+  if (type === "email") {
+    rules.pattern = { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Enter a valid email address." };
+  }
 
   if (type === "tel") {
     rules.validate = (value) => {
@@ -139,19 +143,19 @@ function FormField({
 }
 
 function DocumentField({ kind, savedId, change, onChange, onError, errors }) {
-  const [preview, setPreview] = useState("");
+  const previewRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
   const file = change instanceof File ? change : null;
 
   useEffect(() => {
-    if (!file) {
-      setPreview("");
-      return;
-    }
-
+    if (!file || !previewRef.current) return;
+    const image = previewRef.current;
     const url = URL.createObjectURL(file);
-    setPreview(url);
-    return () => URL.revokeObjectURL(url);
+    image.src = url;
+    return () => {
+      image.removeAttribute("src");
+      URL.revokeObjectURL(url);
+    };
   }, [file]);
 
   function selectFile(event) {
@@ -206,9 +210,9 @@ function DocumentField({ kind, savedId, change, onChange, onError, errors }) {
         className="block w-full text-xs"
       />
 
-      {file && preview && (
+      {file && (
         <img
-          src={preview}
+          ref={previewRef}
           alt={`${DOCUMENTS[kind]} preview`}
           className="mt-3 h-24 max-w-full rounded-md object-contain"
         />
@@ -253,6 +257,7 @@ function DocumentField({ kind, savedId, change, onChange, onError, errors }) {
 }
 
 export default function Customer() {
+  const methods = useForm({ defaultValues: EMPTY_FORM });
   const {
     register,
     control,
@@ -261,7 +266,7 @@ export default function Customer() {
     setError,
     clearErrors,
     formState: { errors },
-  } = useForm({ defaultValues: EMPTY_FORM });
+  } = methods;
 
   const [customerType, documentType, licenceNumber, licenceExpiry, status] =
     useWatch({
@@ -275,7 +280,7 @@ export default function Customer() {
       ],
     });
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => new URLSearchParams(window.location.search).get("create") === "1");
   const [updateId, setUpdateId] = useState(null);
   const [customerCode, setCustomerCode] = useState("");
   const [savedDocuments, setSavedDocuments] = useState({});
@@ -290,6 +295,7 @@ export default function Customer() {
   const tableRef = useRef(null);
   const table = useRef(null);
   const listRequest = useRef(null);
+  const listFilters = useRef({ status: "", customer_type: "" });
   const formRequest = useRef(null);
 
   const busy = formLoading || saving;
@@ -319,7 +325,7 @@ export default function Customer() {
     try {
       const { data } = await axiosClient.post(
         "/get_customers",
-        {},
+        listFilters.current,
         { signal: request.signal },
       );
       if (request.signal.aborted) return;
@@ -609,7 +615,7 @@ export default function Customer() {
               title={isEditing ? "Update Customer" : "Create Customer"}
               description="Manage contact details, identification and driving documents."
               submitText={submitText}
-              onSubmit={handleSubmit(saveCustomer)}
+              onSubmit={(event) => handleSubmit(saveCustomer)(event)}
               size="max-w-3xl"
             >
               {formError && (
@@ -623,190 +629,192 @@ export default function Customer() {
                 </p>
               )}
 
-              <form
-                noValidate
-                onSubmit={handleSubmit(saveCustomer)}
-                aria-busy={busy}
-              >
-                <fieldset
-                  disabled={busy}
-                  className="m-0 min-w-0 space-y-5 border-0 p-0"
+              <FormProvider {...methods}>
+                <form
+                  noValidate
+                  onSubmit={(event) => handleSubmit(saveCustomer)(event)}
+                  aria-busy={busy}
                 >
-                  <Section title="Basic details">
-                    <div>
-                      <label
-                        htmlFor="customer_code"
-                        className="mb-2 block text-sm font-semibold"
-                      >
-                        Customer code
-                      </label>
-                      <Input
-                        id="customer_code"
-                        readOnly
-                        value={customerCode || "Assigned on save"}
-                        className="custom-input-sm"
-                      />
-                    </div>
-                    <FormField
-                      {...fieldProps}
-                      name="customer_type"
-                      label="Customer type"
-                      options={["Local", "Tourist"]}
-                      required
-                    />
-                    <FormField
-                      {...fieldProps}
-                      name="full_name"
-                      label="Full name"
-                      maxLength={150}
-                      required
-                    />
-                  </Section>
-
-                  <Section title="Contact details">
-                    <FormField
-                      {...fieldProps}
-                      name="mobile"
-                      label="Mobile number"
-                      type="tel"
-                      maxLength={30}
-                      required
-                    />
-                    <FormField
-                      {...fieldProps}
-                      name="email"
-                      label="Email"
-                      type="email"
-                      maxLength={255}
-                    />
-                    <FormField
-                      {...fieldProps}
-                      name="country"
-                      label="Country"
-                      maxLength={100}
-                      required={customerType === "Tourist"}
-                    />
-                    <FormField
-                      {...fieldProps}
-                      name="address"
-                      label="Address"
-                      maxLength={500}
-                      multiline
-                    />
-                  </Section>
-
-                  <Section title="Identification">
-                    <FormField
-                      {...fieldProps}
-                      name="document_type"
-                      label="Document type"
-                      options={["NIC", "Passport"]}
-                    />
-                    <FormField
-                      {...fieldProps}
-                      name="document_number"
-                      label="Document number"
-                      maxLength={50}
-                    />
-                    {documentType === "Passport" && (
+                  <fieldset
+                    disabled={busy}
+                    className="m-0 min-w-0 space-y-5 border-0 p-0"
+                  >
+                    <Section title="Basic details">
+                      <div>
+                        <label
+                          htmlFor="customer_code"
+                          className="mb-2 block text-sm font-semibold"
+                        >
+                          Customer code
+                        </label>
+                        <Input
+                          id="customer_code"
+                          readOnly
+                          value={customerCode || "Assigned on save"}
+                          className="custom-input-sm"
+                        />
+                      </div>
                       <FormField
                         {...fieldProps}
-                        name="document_expiry"
-                        label="Passport expiry"
-                        type="date"
-                      />
-                    )}
-                  </Section>
-
-                  <Section title="Driving details">
-                    <FormField
-                      {...fieldProps}
-                      name="licence_number"
-                      label="Driving licence number"
-                      maxLength={50}
-                    />
-                    <FormField
-                      {...fieldProps}
-                      name="licence_country"
-                      label="Licence issuing country"
-                      maxLength={100}
-                      required={Boolean(
-                        licenceNumber || licenceExpiry || hasLicenceImage,
-                      )}
-                    />
-                    <FormField
-                      {...fieldProps}
-                      name="licence_expiry"
-                      label="Licence expiry"
-                      type="date"
-                    />
-                  </Section>
-
-                  <Section title="Emergency contact">
-                    <FormField
-                      {...fieldProps}
-                      name="emergency_name"
-                      label="Contact name"
-                      maxLength={150}
-                    />
-                    <FormField
-                      {...fieldProps}
-                      name="emergency_number"
-                      label="Contact number"
-                      type="tel"
-                      maxLength={30}
-                    />
-                  </Section>
-
-                  <Section title="Documents">
-                    {Object.keys(DOCUMENTS).map((kind) => (
-                      <DocumentField
-                        key={kind}
-                        kind={kind}
-                        savedId={savedDocuments[kind]}
-                        change={changes[kind]}
-                        errors={errors}
-                        onError={(message) =>
-                          setError(kind, { type: "manual", message })
-                        }
-                        onChange={(value) => {
-                          clearErrors(kind);
-                          setChanges((previous) => ({
-                            ...previous,
-                            [kind]: value,
-                          }));
-                        }}
-                      />
-                    ))}
-                  </Section>
-
-                  <Section title="Internal details">
-                    <FormField
-                      {...fieldProps}
-                      name="status"
-                      label="Status"
-                      options={["Active", "Inactive", "Blocked"]}
-                      required
-                    />
-                    {status === "Blocked" && (
-                      <FormField
-                        {...fieldProps}
-                        name="block_reason"
-                        label="Block reason"
-                        maxLength={500}
+                        name="customer_type"
+                        label="Customer type"
+                        options={["Local", "Tourist"]}
                         required
                       />
-                    )}
-                    <FormField
-                      {...fieldProps}
-                      name="notes"
-                      label="Staff notes"
-                      maxLength={2000}
-                      multiline
-                    />
-                  </Section>
-                </fieldset>
-              </form>
+                      <FormField
+                        {...fieldProps}
+                        name="full_name"
+                        label="Full name"
+                        maxLength={150}
+                        required
+                      />
+                    </Section>
+
+                    <Section title="Contact details">
+                      <FormField
+                        {...fieldProps}
+                        name="mobile"
+                        label="Mobile number"
+                        type="tel"
+                        maxLength={30}
+                        required
+                      />
+                      <FormField
+                        {...fieldProps}
+                        name="email"
+                        label="Email"
+                        type="email"
+                        maxLength={255}
+                      />
+                      <FormField
+                        {...fieldProps}
+                        name="country"
+                        label="Country"
+                        maxLength={100}
+                        required={customerType === "Tourist"}
+                      />
+                      <FormField
+                        {...fieldProps}
+                        name="address"
+                        label="Address"
+                        maxLength={500}
+                        multiline
+                      />
+                    </Section>
+
+                    <Section title="Identification">
+                      <FormField
+                        {...fieldProps}
+                        name="document_type"
+                        label="Document type"
+                        options={["NIC", "Passport"]}
+                      />
+                      <FormField
+                        {...fieldProps}
+                        name="document_number"
+                        label="Document number"
+                        maxLength={50}
+                      />
+                      {documentType === "Passport" && (
+                        <FormField
+                          {...fieldProps}
+                          name="document_expiry"
+                          label="Passport expiry"
+                          type="date"
+                        />
+                      )}
+                    </Section>
+
+                    <Section title="Driving details">
+                      <FormField
+                        {...fieldProps}
+                        name="licence_number"
+                        label="Driving licence number"
+                        maxLength={50}
+                      />
+                      <FormField
+                        {...fieldProps}
+                        name="licence_country"
+                        label="Licence issuing country"
+                        maxLength={100}
+                        required={Boolean(
+                          licenceNumber || licenceExpiry || hasLicenceImage,
+                        )}
+                      />
+                      <FormField
+                        {...fieldProps}
+                        name="licence_expiry"
+                        label="Licence expiry"
+                        type="date"
+                      />
+                    </Section>
+
+                    <Section title="Emergency contact">
+                      <FormField
+                        {...fieldProps}
+                        name="emergency_name"
+                        label="Contact name"
+                        maxLength={150}
+                      />
+                      <FormField
+                        {...fieldProps}
+                        name="emergency_number"
+                        label="Contact number"
+                        type="tel"
+                        maxLength={30}
+                      />
+                    </Section>
+
+                    <Section title="Documents">
+                      {Object.keys(DOCUMENTS).map((kind) => (
+                        <DocumentField
+                          key={kind}
+                          kind={kind}
+                          savedId={savedDocuments[kind]}
+                          change={changes[kind]}
+                          errors={errors}
+                          onError={(message) =>
+                            setError(kind, { type: "manual", message })
+                          }
+                          onChange={(value) => {
+                            clearErrors(kind);
+                            setChanges((previous) => ({
+                              ...previous,
+                              [kind]: value,
+                            }));
+                          }}
+                        />
+                      ))}
+                    </Section>
+
+                    <Section title="Internal details">
+                      <FormField
+                        {...fieldProps}
+                        name="status"
+                        label="Status"
+                        options={["Active", "Inactive", "Blocked"]}
+                        required
+                      />
+                      {status === "Blocked" && (
+                        <FormField
+                          {...fieldProps}
+                          name="block_reason"
+                          label="Block reason"
+                          maxLength={500}
+                          required
+                        />
+                      )}
+                      <FormField
+                        {...fieldProps}
+                        name="notes"
+                        label="Staff notes"
+                        maxLength={2000}
+                        multiline
+                      />
+                    </Section>
+                  </fieldset>
+                </form>
+              </FormProvider>
             </CustomDrawer>
 
             <div className="xl:col-span-12">
@@ -827,6 +835,17 @@ export default function Customer() {
                   className="relative p-6"
                   aria-busy={tableLoading}
                 >
+                  <div className="mb-4 flex flex-wrap gap-3">
+                    {[['status', 'Customer status', ['Active', 'Inactive', 'Blocked']], ['customer_type', 'Customer type', ['Local', 'Tourist']]].map(([name, label, options]) => (
+                      <select key={name} aria-label={label} className="custom-input-sm" defaultValue="" onChange={(event) => {
+                        listFilters.current[name] = event.target.value;
+                        void getCustomers();
+                      }}>
+                        <option value="">{name === "status" ? "All customer statuses" : "All customer types"}</option>
+                        {options.map((value) => <option key={value} value={value}>{value}</option>)}
+                      </select>
+                    ))}
+                  </div>
                   <TableSearch table={table} />
                   <div
                     ref={tableRef}

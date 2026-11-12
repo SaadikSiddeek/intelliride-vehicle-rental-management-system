@@ -1,12 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import "./styles/vendor/shadcn.css";
 @import "@fontsource-variable/inter";
 @import "./styles/design-system.css";
 @import "./styles/premium.css";
 @import "./styles/appearance-tokens.css";
 @import "./styles/enterprise.css";
 @import "./styles/marketing.css";
+@import "./styles/consistency.css";
 @custom-variant dark (&:is(.dark *));
 @theme inline {
   --font-heading: var(--font-sans);

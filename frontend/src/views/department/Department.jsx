@@ -385,7 +385,7 @@ export default function Department() {
                   : "Enter the details for a new department."
               }
               submitText={submitText}
-              onSubmit={handleSubmit(saveDepartment)}
+              onSubmit={event => { void handleSubmit(saveDepartment)(event); }}
               size="max-w-xl"
             >
               {formError && (
@@ -410,7 +410,7 @@ export default function Department() {
               )}
 
               <form
-                onSubmit={handleSubmit(saveDepartment)}
+                onSubmit={event => { void handleSubmit(saveDepartment)(event); }}
                 aria-busy={isBusy}
                 noValidate
               >
