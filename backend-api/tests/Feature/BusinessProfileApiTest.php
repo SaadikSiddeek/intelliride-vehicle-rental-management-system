@@ -107,5 +107,60 @@ test('profile photos belong only to authenticated user and survive replacement s
 });
 test('return configuration never invents missing monetary rates or allows unsupported currency', function () {
     $this->postJson('/api/save_business_profile', businessPayload(['currency' => 'USD']))->assertUnprocessable();
-    $this->postJson('/api/save_business_profile',businessPayload())->assertOk()->assertJsonPath('data.return_policy.fuel_price_per_litre',null)->assertJsonPath('data.return_policy.weekly_monthly_hourly_rate',null);
+    $this->postJson('/api/save_business_profile', businessPayload())->assertOk()->assertJsonPath('data.return_policy.fuel_price_per_litre', null)->assertJsonPath('data.return_policy.weekly_monthly_hourly_rate', null);
+});
+
+test('missing GD returns a safe upload error before company or profile records change', function () {
+    $service = Mockery::mock(BusinessProfileService::class)->makePartial();
+    $service->shouldReceive('imageProcessingAvailable')->andReturn(false);
+    $this->app->instance(BusinessProfileService::class, $service);
+    $before = DB::table('business_profile_tb')->where('ID', 1)->first();
+    $this->post('/api/save_business_profile', businessPayload(['logo' => UploadedFile::fake()->image('logo.png', 240, 100)]), ['Accept' => 'application/json'])
+        ->assertStatus(503)->assertJsonPath('error_code', 'IMAGE_PROCESSING_UNAVAILABLE');
+    $this->post('/api/my_profile_photo', ['image' => UploadedFile::fake()->image('avatar.png', 100, 100)], ['Accept' => 'application/json'])
+        ->assertStatus(503)->assertJsonPath('error_code', 'IMAGE_PROCESSING_UNAVAILABLE');
+    expect(DB::table('business_profile_tb')->where('ID', 1)->first())->toEqual($before);
+    expect(DB::table('users_tb')->where('ID', 701)->value('profile_photo_path'))->toBeNull();
+    expect(Storage::disk('business_assets')->allFiles())->toBeEmpty();
+    $this->getJson('/api/business_branding')->assertOk()->assertJsonPath('data.logo_data', null);
+});
+
+test('missing persisted logos are reported without breaking branding or changing historical snapshots', function () {
+    $snapshot = DB::table('invoice_tb')->value('snapshot');
+    DB::table('business_profile_tb')->where('ID', 1)->update(['logo_path' => 'logos/missing.png']);
+    $this->getJson('/api/business_profile')->assertOk()->assertJsonPath('data.logo_missing', true)->assertJsonPath('data.has_custom_logo', true);
+    $data = $this->getJson('/api/business_branding')->assertOk()->json('data.logo_data');
+    expect($data)->toStartWith('data:image/png;base64,');
+    expect(is_file(resource_path('images/intelliride-wordmark.webp')))->toBeTrue();
+    expect(DB::table('business_profile_tb')->value('logo_path'))->toBe('logos/missing.png');
+    expect(DB::table('invoice_tb')->value('snapshot'))->toBe($snapshot);
+});
+
+test('PNG JPEG and WebP profile uploads are normalized privately and remain owner scoped', function (string $extension) {
+    $this->post('/api/my_profile_photo', ['image' => UploadedFile::fake()->image('avatar.'.$extension, 120, 80)], ['Accept' => 'application/json'])
+        ->assertOk()->assertJsonPath('user.has_profile_photo', true);
+    $path = DB::table('users_tb')->where('ID', 701)->value('profile_photo_path');
+    expect($path)->toStartWith('avatars/')->toEndWith('.png');
+    $bytes = Storage::disk('business_assets')->get($path);
+    expect(substr($bytes, 0, 8))->toBe("\x89PNG\r\n\x1a\n");
+    $this->get('/api/my_profile_photo')->assertOk()->assertHeader('Cache-Control', 'no-store, private')->assertHeader('X-Content-Type-Options', 'nosniff');
+})->with(['png', 'jpeg', 'webp']);
+
+test('ordinary active users may update their own photo but not company branding', function () {
+    config(['customer_access.users' => [], 'access.administration_users' => [], 'access.company_users' => []]);
+    DB::table('roles_tb')->where('ID', 1)->update(['role_name' => 'Employee']);
+    $this->getJson('/api/business_profile')->assertForbidden();
+    $this->post('/api/my_profile_photo', ['image' => UploadedFile::fake()->image('avatar.png', 100, 100)], ['Accept' => 'application/json'])->assertOk();
+    $before = DB::table('users_tb')->where('ID', 701)->value('profile_photo_path');
+    $this->post('/api/my_profile_photo', ['user_id' => 999, 'remove' => true], ['Accept' => 'application/json'])->assertUnprocessable();
+    expect(DB::table('users_tb')->where('ID', 701)->value('profile_photo_path'))->toBe($before);
+});
+
+test('invalid image content and oversized profile files cannot replace a saved picture', function () {
+    $this->post('/api/my_profile_photo', ['image' => UploadedFile::fake()->image('avatar.png', 100, 100)], ['Accept' => 'application/json'])->assertOk();
+    $before = DB::table('users_tb')->where('ID', 701)->value('profile_photo_path');
+    $this->post('/api/my_profile_photo', ['image' => UploadedFile::fake()->createWithContent('fake.png', 'not image content')], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('image');
+    $this->post('/api/my_profile_photo', ['image' => UploadedFile::fake()->image('oversize.png', 100, 100)->size(2049)], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('image');
+    expect(DB::table('users_tb')->where('ID', 701)->value('profile_photo_path'))->toBe($before);
+    Storage::disk('business_assets')->assertExists($before);
 });

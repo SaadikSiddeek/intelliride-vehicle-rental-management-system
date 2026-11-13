@@ -13,3 +13,12 @@ test('validation errors remain available to forms and authentication is distinct
   assert.equal(apiFailure({response:{status:401}}).title,'Session expired');
   assert.equal(apiFailure({}).title,'Connection problem');
 });
+
+test('upload limits and unavailable image processing have safe, actionable messages', () => {
+  assert.equal(apiFailure({response:{status:413}}).title, 'Upload too large');
+  assert.equal(apiFailure({response:{status:419}}).title, 'Session verification required');
+  const result = apiFailure({response:{status:503,data:{error_code:'IMAGE_PROCESSING_UNAVAILABLE',message:'secret stack trace'}}});
+  assert.equal(result.title, 'Image uploads unavailable');
+  assert.equal(result.message.includes('secret'), false);
+  assert.equal(apiFailure({response:{status:503,data:{error_code:'UNKNOWN',message:'secret'}}}).title, 'Service temporarily unavailable');
+});

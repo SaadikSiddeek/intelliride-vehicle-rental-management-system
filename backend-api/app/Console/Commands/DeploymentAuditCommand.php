@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\User;
 use App\Services\AccessService;
+use App\Services\BusinessProfileService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -29,6 +30,11 @@ class DeploymentAuditCommand extends Command
             'legacy_customer_assignment_count' => count(config('customer_access.users', [])),
             'operations_assignment_mode' => config('access.operations_users') === null ? 'legacy customer IDs plus explicitly configured roles' : 'explicit operations IDs plus explicitly configured roles',
             'operations_role_names' => config('access.operations_roles', []),
+            'image_processing_available' => app(BusinessProfileService::class)->imageProcessingAvailable(),
+            'image_webp_available' => function_exists('imagecreatefromwebp'),
+            'zip_available' => class_exists(\ZipArchive::class),
+            'storage_app_writable' => is_writable(storage_path('app')),
+            'upload_max_filesize' => ini_get('upload_max_filesize'), 'post_max_size' => ini_get('post_max_size'),
         ];
         try {
             $ran = Schema::hasTable('migrations') ? DB::table('migrations')->pluck('migration')->all() : [];

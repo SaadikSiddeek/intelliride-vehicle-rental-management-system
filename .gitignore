@@ -35,3 +35,7 @@ env/
 # IntelliRide internal development documentation
 /docs/
 /DEVELOPMENT_PROGRESS.md
+
+FRONTEND_UI_REDESIGN_GUIDE.md
+QA_RESULTS.md
+REDESIGN_FILE_CHANGES.md

@@ -22,7 +22,7 @@ class BusinessProfileController extends Controller
         $this->admin($r);
         $v = $service->current();
 
-        return response()->json(['status' => true, 'data' => [...$v['profile'], 'revision' => $v['revision'], 'logo_data' => $service->logoData($v['logo_path']), 'has_custom_logo' => (bool) $v['logo_path'], 'return_policy' => $service->policy()]])->header('Cache-Control', 'private, no-store');
+        return response()->json(['status' => true, 'data' => [...$v['profile'], 'revision' => $v['revision'], 'logo_data' => $service->logoData($v['logo_path']), 'has_custom_logo' => (bool) $v['logo_path'], 'logo_missing' => (bool) $v['logo_path'] && ! Storage::disk('business_assets')->exists($v['logo_path']), 'return_policy' => $service->policy()]])->header('Cache-Control', 'private, no-store');
     }
 
     public function branding(Request $r, BusinessProfileService $service)
@@ -59,6 +59,6 @@ class BusinessProfileController extends Controller
         }
 
         // Immutable logo files are retained for historical documents/audit.
-        return $this->show($r,$service);
+        return $this->show($r, $service);
     }
 }

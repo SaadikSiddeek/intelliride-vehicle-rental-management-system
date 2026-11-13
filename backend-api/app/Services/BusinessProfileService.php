@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -31,12 +32,13 @@ class BusinessProfileService
 
     public function logoData(?string $path): ?string
     {
-        $bytes = $path ? Storage::disk('business_assets')->get($path) : null;
+        $disk = Storage::disk('business_assets');
+        $bytes = $path && $disk->exists($path) ? $disk->get($path) : null;
         if (! $bytes) {
-            $asset = base_path('../frontend/public/brand/wordmark-color.webp');
+            $asset = resource_path('images/intelliride-wordmark.webp');
             $bytes = is_file($asset) ? file_get_contents($asset) : null;
         }
-        if (! $bytes) {
+        if (! $bytes || ! $this->imageProcessingAvailable()) {
             return null;
         }
         $image = @imagecreatefromstring($bytes);
@@ -60,11 +62,22 @@ class BusinessProfileService
         return ['width' => round($size[0] * $scale, 2), 'height' => round($size[1] * $scale, 2)];
     }
 
+    public function imageProcessingAvailable(): bool
+    {
+        return extension_loaded('gd') && function_exists('imagecreatefromstring') && function_exists('imagecreatetruecolor') && function_exists('imagepng');
+    }
+
     public function storeImage($file, string $folder, bool $avatar = false): string
     {
+        if (! $this->imageProcessingAvailable()) {
+            throw new HttpResponseException(response()->json([
+                'status' => false, 'error_code' => 'IMAGE_PROCESSING_UNAVAILABLE',
+                'message' => 'Image uploads are temporarily unavailable. Contact your administrator.',
+            ], 503));
+        }
         $source = @imagecreatefromstring(file_get_contents($file->getRealPath()));
         if (! $source) {
-            throw ValidationException::withMessages(['image' => 'Image content could not be decoded.']);
+            throw ValidationException::withMessages([($avatar ? 'image' : 'logo') => 'Image content could not be decoded.']);
         }
         $w = imagesx($source);
         $h = imagesy($source);
@@ -80,10 +93,10 @@ class BusinessProfileService
         imagedestroy($source);
         imagedestroy($out);
         $path = $folder.'/'.Str::uuid().'.png';
-        if (! Storage::disk('business_assets')->put($path,$bytes)) {
+        if (! Storage::disk('business_assets')->put($path, $bytes)) {
             throw new \RuntimeException('Image storage failed.');
         }
 
-return $path;
+        return $path;
     }
 }
