@@ -296,3 +296,26 @@ it('preserves unchanged approved legacy employee links while preventing new dupl
     $this->postJson('/api/save_user', $body)->assertUnprocessable()->assertJsonValidationErrors('emp_id');
     expect(DB::table('users_tb')->where('ID', 5)->value('emp_id'))->toBeNull();
 });
+
+
+it('deactivates and reactivates accounts through authorized user management without erasing grants or reviving tokens', function () {
+    DB::table('users_tb')->where('ID', 3)->update(['emp_id' => '1']);
+    DB::table('user_permission_tb')->insert(['user_id' => 3, 'permission_code' => 'customers.view', 'effect' => 'allow']);
+    $issued = User::findOrFail(3)->createToken('isolated-status-test');
+    $tokenId = $issued->accessToken->id;
+    Sanctum::actingAs(User::findOrFail(1));
+    $body = rbacUserPayload(['username' => 'rbac-test-3', 'email' => 'rbac-3@example.test', 'role_id' => DB::table('users_tb')->where('ID', 3)->value('role_id'), 'password' => null, 'status' => false]);
+    $body['upd_id'] = 3;
+    $this->postJson('/api/save_user', $body)->assertOk();
+    expect((bool) DB::table('users_tb')->where('ID', 3)->value('status'))->toBeFalse()
+        ->and(DB::table('personal_access_tokens')->where('id', $tokenId)->exists())->toBeFalse()
+        ->and(DB::table('user_permission_tb')->where('user_id', 3)->value('effect'))->toBe('allow');
+    $body['form_data']['status'] = true;
+    $this->postJson('/api/save_user', $body)->assertOk();
+    expect((bool) DB::table('users_tb')->where('ID', 3)->value('status'))->toBeTrue()
+        ->and(DB::table('personal_access_tokens')->where('id', $tokenId)->exists())->toBeFalse();
+    // The fixture's parent Admin has no delegation; retaining grants never bypasses that ceiling.
+    expect(app(PermissionService::class)->effective(User::findOrFail(3)))->toBe([]);
+    ($this->grant)(2, ['customers.view']);
+    expect(app(PermissionService::class)->effective(User::findOrFail(3)))->toBe(['customers.view']);
+});

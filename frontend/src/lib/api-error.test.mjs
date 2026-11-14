@@ -22,3 +22,10 @@ test('upload limits and unavailable image processing have safe, actionable messa
   assert.equal(result.message.includes('secret'), false);
   assert.equal(apiFailure({response:{status:503,data:{error_code:'UNKNOWN',message:'secret'}}}).title, 'Service temporarily unavailable');
 });
+
+ test('inactive accounts and first-password actions are distinct from permission denials', () => {
+  const inactive = apiFailure({response:{status:403,data:{code:'ACCOUNT_INACTIVE',message:'private diagnostics'}}});
+  assert.equal(inactive.title,'Account inactive');
+  assert.equal(inactive.message.includes('private'),false);
+  assert.equal(apiFailure({response:{status:403,data:{code:'PASSWORD_CHANGE_REQUIRED'}}}).title,'Password change required');
+});

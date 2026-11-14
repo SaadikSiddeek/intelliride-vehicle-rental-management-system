@@ -72,7 +72,7 @@ export function ContextProvider({ children }) {
     const refresh = () => {
       if (document.visibilityState !== 'visible') return;
       axiosClient.get('/user').then(({data}) => { if (!cancelled) setUser(data); }).catch(error => {
-        if (!cancelled && [401, 403].includes(error.response?.status)) clearSession(true);
+        if (!cancelled && [401, 403].includes(error.response?.status)) clearSession(error.response?.data?.code === "ACCOUNT_INACTIVE" ? "inactive" : true);
       });
     };
     const interval = window.setInterval(refresh, 30000);
@@ -81,7 +81,7 @@ export function ContextProvider({ children }) {
   }, [token, clearSession]);
 
   useEffect(() => {
-    const handleExpired = () => clearSession(true);
+    const handleExpired = event => clearSession(event.detail === "inactive" ? "inactive" : true);
 
     const handleStorage = (event) => {
       if (event.key === TOKEN_KEY || event.key === null) {
@@ -146,9 +146,9 @@ export function ContextProvider({ children }) {
           setUser(data);
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (!cancelled && !expiring) {
-          clearSession(true);
+          clearSession(error.response?.data?.code === "ACCOUNT_INACTIVE" ? "inactive" : true);
         }
       })
       .finally(() => {

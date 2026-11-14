@@ -22,13 +22,14 @@ axiosClient.interceptors.request.use((config) => {
 axiosClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const inactive = error.response?.status === 403 && error.response?.data?.code === "ACCOUNT_INACTIVE";
+    if (error.response?.status === 401 || inactive) {
       // Avoid clearing a newer login because an older request failed.
       const currentToken = localStorage.getItem(TOKEN_KEY);
       const sentToken = error.config?.headers?.Authorization;
 
       if (currentToken && sentToken === `Bearer ${currentToken}`) {
-        notifySessionExpired();
+        notifySessionExpired(inactive ? "inactive" : "expired");
       }
     }
 

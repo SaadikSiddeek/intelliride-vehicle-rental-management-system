@@ -59,7 +59,7 @@ export default function Login() {
 
       {sessionExpired && (
         <div role="status" className="form-alert">
-          Your session has ended. Please sign in again.
+          {sessionExpired === "inactive" ? "This account is inactive. Contact your administrator to reactivate it." : "Your session has ended. Please sign in again."}
         </div>
       )}
 

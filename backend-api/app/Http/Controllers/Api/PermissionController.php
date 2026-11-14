@@ -29,7 +29,7 @@ class PermissionController extends Controller
     public function targets(Request $r, PermissionService $p)
     {
         abort_unless($p->enabled(), 403);
-        $f = $r->validate(['kind' => ['nullable', Rule::in(['user', 'role'])], 'q' => ['nullable', 'string', 'max:100'], 'id' => ['nullable', 'integer']]);
+        $f = $r->validate(['kind' => ['nullable', Rule::in(['user', 'role'])], 'q' => ['nullable', 'string', 'max:100'], 'id' => ['nullable', 'integer'], 'status' => ['nullable', Rule::in(['active', 'inactive', 'all'])]]);
         $role = ($f['kind'] ?? 'user') === 'role';
         abort_if($role && $r->user()->user_type !== 'super_admin', 403);
         $q = DB::table($role ? 'roles_tb' : 'users_tb');
@@ -40,9 +40,14 @@ class PermissionController extends Controller
         if (isset($f['id'])) {
             $q->where('ID', $f['id']);
         } else {
+            $status = $f['status'] ?? 'active';
+            if ($status !== 'all') $q->where('status', $status === 'active');
             $q->where($column, 'like', '%' . ($f['q'] ?? '') . '%');
         }
-        return response()->json(['success' => true, 'data' => $q->orderBy($column)->limit(30)->get(['ID as id', "$column as text"])]);
+        return response()->json(['success' => true, 'data' => $q->orderBy($column)->limit(30)->get(['ID as id', "$column as text", 'status'])->map(function ($row) {
+            if (! $row->status) $row->text .= ' (Inactive)';
+            return $row;
+        })]);
     }
 
     public function catalog(Request $r, PermissionService $p)
@@ -66,7 +71,7 @@ class PermissionController extends Controller
         $overrides = DB::table('user_permission_tb')->where('user_id', $u->ID)->get();
         $scope = DB::table('admin_permission_scope_tb')->where('user_id', $u->ID)->get();
         $inherited = DB::table('roles_tb')->where('ID', $u->role_id)->where('status', true)->exists() ? DB::table('role_permission_tb')->where('role_id', $u->role_id)->pluck('permission_code') : [];
-        return response()->json(['status' => true, 'data' => ['name' => $u->username, 'user_type' => $u->user_type, 'allow' => $overrides->where('effect', 'allow')->pluck('permission_code')->values(), 'deny' => $overrides->where('effect', 'deny')->pluck('permission_code')->values(), 'inherited' => $inherited, 'effective' => $p->effective($u), 'warnings' => $p->assignmentWarnings($u), 'access' => $scope->pluck('permission_code'), 'delegable' => $scope->where('delegable', true)->pluck('permission_code')->values()]]);
+        return response()->json(['status' => true, 'data' => ['name' => $u->username, 'user_type' => $u->user_type, 'active' => (bool) $u->status, 'allow' => $overrides->where('effect', 'allow')->pluck('permission_code')->values(), 'deny' => $overrides->where('effect', 'deny')->pluck('permission_code')->values(), 'inherited' => $inherited, 'effective' => $p->effective($u), 'warnings' => $p->assignmentWarnings($u), 'access' => $scope->pluck('permission_code'), 'delegable' => $scope->where('delegable', true)->pluck('permission_code')->values()]]);
     }
 
     public function save(Request $r, PermissionService $p)
@@ -98,6 +103,7 @@ class PermissionController extends Controller
             $target = DB::table('users_tb')->where('ID', $f['id'])->lockForUpdate()->first();
             abort_unless($target, 404);
             $p->assertManageTarget($actor, $target);
+            abort_unless($target->status, 422, 'This account is inactive. Reactivate it in User Management before changing permissions.');
             abort_if($target->user_type === 'super_admin', 403, 'Super Admin authority is managed only through the installation console.');
             $before = ['overrides' => DB::table('user_permission_tb')->where('user_id', $target->ID)->get()->toArray(), 'scope' => DB::table('admin_permission_scope_tb')->where('user_id', $target->ID)->get()->toArray()];
             $allowed = $p->delegable($actor);

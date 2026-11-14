@@ -5,6 +5,8 @@ export function apiFailure(error) {
   if (status === 413) return { title: "Upload too large", message: "The upload exceeds the service limit. Use a smaller file and try again." };
   if (status === 419) return { title: "Session verification required", message: "Please sign in again before submitting this form." };
   if (status === 401) return { title: "Session expired", message: "Please sign in again to continue." };
+  if (status === 403 && error?.response?.data?.code === "ACCOUNT_INACTIVE") return { title: "Account inactive", message: "This account is inactive. Contact your administrator to reactivate it." };
+  if (status === 403 && error?.response?.data?.code === "PASSWORD_CHANGE_REQUIRED") return { title: "Password change required", message: "Change your installation password before continuing." };
   if (status === 403) return { title: "Access denied", message: "Your account does not have permission for this action. Contact your administrator if you need access." };
   if (status === 404) return { title: "Page or record unavailable", message: "The requested resource is unavailable. Refresh the page or contact your administrator." };
   if (status >= 500) return { title: "Service temporarily unavailable", message: "We could not complete this request. Please try again. If it continues, contact your administrator." };

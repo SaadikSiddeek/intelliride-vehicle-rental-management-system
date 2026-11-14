@@ -9,7 +9,7 @@ export function clearStoredSession() {
   localStorage.removeItem(ACTIVITY_KEY);
 }
 
-export function notifySessionExpired() {
+export function notifySessionExpired(reason = "expired") {
   clearStoredSession();
-  window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+  window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT, { detail: reason }));
 }

@@ -30,7 +30,7 @@ class AuthController extends Controller
         $user = Auth::user();
         if (! $user->status) {
             Auth::logout();
-            abort(403, 'This account is inactive. Contact your administrator.');
+            return response()->json(['message' => 'This account is inactive. Contact your administrator.', 'code' => 'ACCOUNT_INACTIVE'], 403);
         }
 
         $token = $user->createToken(

@@ -89,3 +89,54 @@ it('reports saved Admin grants blocked by an empty ceiling and activates only ex
     $this->postJson('/api/save_customer')->assertForbidden();
     $this->postJson('/api/save_permissions', $body)->assertForbidden();
 });
+
+
+it('defaults assignment search to active accounts while retaining labelled inactive edit hydration and read-only review', function () {
+    DB::table('users_tb')->where('ID', 3)->update(['status' => false]);
+    DB::table('user_permission_tb')->insert(['user_id' => 3, 'permission_code' => 'customers.view', 'effect' => 'allow']);
+    loginRoundTrip($this, 1);
+    $this->postJson('/api/permission_targets', ['q' => 'roundtrip-'])->assertOk()->assertJsonCount(2, 'data');
+    $this->postJson('/api/permission_targets', ['status' => 'inactive'])->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', 3)->assertJsonPath('data.0.text', 'roundtrip-3 (Inactive)');
+    $this->postJson('/api/permission_targets', ['status' => 'all'])->assertOk()->assertJsonCount(3, 'data');
+    $this->postJson('/api/permission_targets', ['id' => 3])->assertOk()->assertJsonPath('data.0.id', 3)->assertJsonPath('data.0.text', 'roundtrip-3 (Inactive)');
+    $this->postJson('/api/permission_target', ['kind' => 'user', 'id' => 3])->assertOk()->assertJsonPath('data.active', false)->assertJsonPath('data.allow', ['customers.view'])->assertJsonPath('data.effective', []);
+    $this->postJson('/api/save_permissions', ['kind' => 'user', 'id' => 3, 'reason' => 'Inactive review cannot mutate', 'allow' => [], 'deny' => [], 'access' => [], 'delegable' => []])->assertUnprocessable();
+    expect(DB::table('user_permission_tb')->where('user_id', 3)->value('permission_code'))->toBe('customers.view');
+    $this->postJson('/api/permission_targets', ['status' => 'invalid'])->assertUnprocessable();
+});
+
+it('rejects inactive logins and already-issued tokens without deleting permission assignments', function () {
+    DB::table('user_permission_tb')->insert(['user_id' => 3, 'permission_code' => 'customers.view', 'effect' => 'allow']);
+    loginRoundTrip($this, 3);
+    $this->postJson('/api/get_customers')->assertOk();
+    DB::table('users_tb')->where('ID', 3)->update(['status' => false]);
+    app('auth')->forgetGuards();
+    $this->getJson('/api/user')->assertForbidden()->assertJsonPath('code', 'ACCOUNT_INACTIVE');
+    $this->postJson('/api/get_customers')->assertForbidden()->assertJsonPath('code', 'ACCOUNT_INACTIVE');
+    $tokens = DB::table('personal_access_tokens')->count();
+    app('auth')->forgetGuards(); app('auth')->shouldUse('web');
+    $this->postJson('/api/login', ['email' => 'roundtrip-3@example.test', 'password' => $this->roundTripSecrets[3]])->assertForbidden()->assertJsonPath('code', 'ACCOUNT_INACTIVE');
+    expect(DB::table('personal_access_tokens')->count())->toBe($tokens)
+        ->and(DB::table('user_permission_tb')->where('user_id', 3)->value('permission_code'))->toBe('customers.view');
+    DB::table('users_tb')->where('ID', 3)->update(['status' => true]);
+    expect(loginRoundTrip($this, 3)['effective_permissions'])->toBe(['customers.view']);
+});
+
+
+it('uses canonical Normal User grants under production-style settings with all legacy allowlists empty', function () {
+    $this->app->instance('env', 'production');
+    config(['app.debug' => false, 'access.operations_users' => [], 'access.operations_roles' => [], 'access.customer_roles' => [], 'access.administration_users' => [], 'access.company_users' => [], 'customer_access.users' => [], 'rental.identity_report_user_ids' => []]);
+    try {
+        loginRoundTrip($this, 1);
+        $this->postJson('/api/save_permissions', ['kind' => 'user', 'id' => 3, 'reason' => 'Isolated production configuration regression', 'allow' => ['customers.view'], 'deny' => [], 'access' => [], 'delegable' => []])->assertOk()->assertJsonPath('data.effective', ['customers.view']);
+        expect(loginRoundTrip($this, 3)['effective_permissions'])->toBe(['customers.view']);
+        $this->getJson('/api/user')->assertOk()->assertJsonPath('effective_permissions', ['customers.view']);
+        $this->postJson('/api/get_customers')->assertOk();
+        $this->postJson('/api/save_customer')->assertForbidden();
+        $this->postJson('/api/dashboard_overview')->assertForbidden();
+        $this->postJson('/api/get_users')->assertForbidden();
+        expect(app(\App\Services\AccessService::class)->identity(User::findOrFail(3)))->toBeFalse();
+    } finally {
+        $this->app->instance('env', 'testing');
+    }
+});
