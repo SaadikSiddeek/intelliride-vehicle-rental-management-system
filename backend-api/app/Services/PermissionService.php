@@ -75,6 +75,27 @@ class PermissionService
         return array_values($effective);
     }
 
+    public function assignmentWarnings(User $target): array
+    {
+        $user = $target->fresh();
+        if (! $user || $user->user_type === 'super_admin') return [];
+        if (! $user->status) return ['This account is inactive; saved assignments do not enable sign-in.'];
+        $role = DB::table('roles_tb')->where('ID', $user->role_id)->where('status', true)->exists();
+        $inherited = $role ? DB::table('role_permission_tb')->where('role_id', $user->role_id)->pluck('permission_code')->all() : [];
+        $overrides = DB::table('user_permission_tb')->where('user_id', $user->ID)->get();
+        $requested = array_values(array_diff(array_unique([...$inherited, ...$overrides->where('effect', 'allow')->pluck('permission_code')->all()]), $overrides->where('effect', 'deny')->pluck('permission_code')->all()));
+        $blocked = array_diff($requested, $this->effective($user));
+        if (! $blocked) return [];
+        if ($user->user_type === 'admin') {
+            $ceiling = DB::table('admin_permission_scope_tb')->where('user_id', $user->ID)->pluck('permission_code')->all();
+            if (array_diff($requested, $ceiling, ['roles.manage', 'authorization_audit.view'])) {
+                return ['Some saved Admin grants are outside the Access ceiling and remain blocked. Super Admin must explicitly select the intended Access ceiling. May delegate is separate and controls what this Admin can assign to Normal Users.'];
+            }
+            return ['Some requested actions are reserved for Super Admin and remain blocked for this Admin.'];
+        }
+        return ['Some saved grants remain blocked by account-type restrictions or the managing Admin\'s current access/delegation. Saved assignments do not override those restrictions.'];
+    }
+
     public function can(?User $user, string $permission): bool
     {
         return in_array($permission, $this->effective($user), true);

@@ -59,6 +59,12 @@ export default function Permissions() {
     }
     if (field === "access" && !checked) setValue("delegable", getValues("delegable").filter(value => value !== code), { shouldDirty: true });
   };
+  const copyGrantsToCeiling = () => {
+    const denied = getValues("deny");
+    const next = [...new Set([...(target.inherited || []), ...getValues("allow")])].filter(code => scope.includes(code) && !denied.includes(code) && !["roles.manage", "authorization_audit.view"].includes(code));
+    setValue("access", next, { shouldDirty: true });
+    setValue("delegable", getValues("delegable").filter(code => next.includes(code)), { shouldDirty: true });
+  };
   const loadTarget = async () => {
     if (!getValues("target_id")) { setError("Select an account or role template first."); return; }
     if (dirty && !window.confirm("Discard unsaved permission changes?")) return;
@@ -77,8 +83,8 @@ export default function Permissions() {
     try {
       const payload = { kind: target.kind, id: target.id, reason: fields.reason };
       for (const key of ["allow", "deny", "access", "delegable"]) payload[key] = fields[key].filter(code => isSuperAdmin || scope.includes(code));
-      await axiosClient.post("/save_permissions", payload);
-      setSaved(fields); setSuccess("Permissions saved. The server applies the new access on subsequent requests.");
+      const { data: result } = await axiosClient.post("/save_permissions", payload);
+      setSaved(fields); setSuccess(result.data?.warnings?.length ? "Assignments saved. Some actions remain blocked; review the access warning below." : "Permissions saved. The server applies the new access on subsequent requests.");
       try {
         const { data } = await axiosClient.post('/permission_target', {kind: target.kind, id: target.id});
         setTarget(previous => ({...previous, ...data.data}));
@@ -107,6 +113,8 @@ export default function Permissions() {
       {error && <div role="alert" className="form-alert p-4">{error}</div>}
       {success && <p role="status" className="rounded-lg border border-border bg-card p-4 text-sm">{success}</p>}
       {!target && <div className="rounded-xl border border-dashed border-border p-10 text-center text-muted-foreground"><ShieldCheck className="mx-auto mb-3" /><p>Select an account or role to inspect its access.</p></div>}
+      {target?.user_type === "admin" && <section className="rounded-xl border border-border bg-card p-5"><h2 className="font-semibold">Admin access needs grants and a ceiling</h2><p className="mt-2 text-sm text-muted-foreground">Allow or role grants request access. Access ceiling authorizes this Admin to use those actions. May delegate separately authorizes assignments to managed Normal Users. An empty ceiling gives this Admin no application permissions.</p><p className="mt-3 text-sm font-semibold">{target.effective?.length || 0} currently effective actions · {target.access?.length || 0} actions in the saved access ceiling</p>{isSuperAdmin && <><button type="button" className="btn-secondary mt-4" disabled={busy} onClick={copyGrantsToCeiling}>Copy allowed grants to access ceiling</button><p className="mt-2 text-xs text-muted-foreground">This prepares a draft ceiling from role and Allow grants. Review it and save with a reason. It does not add delegation or Super Admin-only actions.</p></>}</section>}
+      {target?.warnings?.map(message => <p key={message} role="alert" className="form-alert p-4">{message}</p>)}
       {target && <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm" aria-busy={busy}>
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border p-5"><div><h2 className="text-lg font-semibold">{target.name}</h2><p className="text-sm text-muted-foreground">{target.kind === "role" ? "Reusable business permission template" : `${target.user_type.replaceAll("_", " ")} · account-specific access`}</p></div>{target.user_type !== "super_admin" && <div className="flex flex-wrap gap-2"><button type="button" className="btn-secondary" onClick={() => setCollapsed(Object.fromEntries(Object.keys(groups).map(g => [g, false])))}>Expand all</button><button type="button" className="btn-secondary" onClick={() => setCollapsed(Object.fromEntries(Object.keys(groups).map(g => [g, true])))}>Collapse all</button></div>}</div>
         {target.user_type === "super_admin" ? <div className="p-5"><h3 className="font-semibold">Full System Access — Super Admin</h3><p className="mt-2 text-sm text-muted-foreground">All registered permissions are automatic. This account has no editable permission overrides.</p></div> : <>

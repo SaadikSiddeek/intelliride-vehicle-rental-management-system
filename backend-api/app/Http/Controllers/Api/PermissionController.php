@@ -11,16 +11,18 @@ use Illuminate\Validation\ValidationException;
 
 class PermissionController extends Controller
 {
-    public function setup(Request $r)
+    public function setup(Request $r, PermissionService $p)
     {
         abort_unless($r->user()->user_type === 'super_admin', 403);
         $employee = (string) $r->user()->emp_id;
+        $adminReady = \App\Models\User::query()->where('user_type', 'admin')->where('status', true)->select('ID')
+            ->lazyById(100, 'ID')->contains(fn ($user) => (bool) $p->effective($user));
         return response()->json(['status' => true, 'data' => [
             ['label' => 'Review company profile', 'complete' => DB::table('business_profile_tb')->whereNotNull('updated_by')->exists(), 'path' => '/company-settings'],
             ['label' => 'Complete the installation branch', 'complete' => DB::table('branch_tb')->where('status', true)->exists() && ! DB::table('branch_tb')->where('branch_code', 'SETUP')->exists(), 'path' => '/branch-management/manage'],
             ['label' => 'Register and link your real employee', 'complete' => ctype_digit($employee) && DB::table('staff_tb')->where('ID', $employee)->where('status', true)->exists(), 'path' => '/staff-management/manage'],
             ['label' => 'Create the first Admin', 'complete' => DB::table('users_tb')->where('user_type', 'admin')->where('status', true)->exists(), 'path' => '/user-management/manage'],
-            ['label' => 'Review Admin access and delegation', 'complete' => DB::table('authorization_audit_tb as a')->join('users_tb as u', 'u.ID', '=', 'a.target_user_id')->where('u.user_type', 'admin')->where('a.action', 'user_permissions_changed')->exists(), 'path' => '/permission-management/manage'],
+            ['label' => 'Review Admin access and delegation', 'complete' => $adminReady, 'path' => '/permission-management/manage'],
         ]]);
     }
 
@@ -64,7 +66,7 @@ class PermissionController extends Controller
         $overrides = DB::table('user_permission_tb')->where('user_id', $u->ID)->get();
         $scope = DB::table('admin_permission_scope_tb')->where('user_id', $u->ID)->get();
         $inherited = DB::table('roles_tb')->where('ID', $u->role_id)->where('status', true)->exists() ? DB::table('role_permission_tb')->where('role_id', $u->role_id)->pluck('permission_code') : [];
-        return response()->json(['status' => true, 'data' => ['name' => $u->username, 'user_type' => $u->user_type, 'allow' => $overrides->where('effect', 'allow')->pluck('permission_code')->values(), 'deny' => $overrides->where('effect', 'deny')->pluck('permission_code')->values(), 'inherited' => $inherited, 'effective' => $p->effective($u), 'access' => $scope->pluck('permission_code'), 'delegable' => $scope->where('delegable', true)->pluck('permission_code')->values()]]);
+        return response()->json(['status' => true, 'data' => ['name' => $u->username, 'user_type' => $u->user_type, 'allow' => $overrides->where('effect', 'allow')->pluck('permission_code')->values(), 'deny' => $overrides->where('effect', 'deny')->pluck('permission_code')->values(), 'inherited' => $inherited, 'effective' => $p->effective($u), 'warnings' => $p->assignmentWarnings($u), 'access' => $scope->pluck('permission_code'), 'delegable' => $scope->where('delegable', true)->pluck('permission_code')->values()]]);
     }
 
     public function save(Request $r, PermissionService $p)
@@ -120,7 +122,8 @@ class PermissionController extends Controller
             }
             $p->audit($actor->ID, $target->ID, 'user_permissions_changed', $f['reason'], $before, array_intersect_key($f, array_flip(['allow', 'deny', 'access', 'delegable'])));
         });
-        return response()->json(['status' => true, 'message' => 'Permissions saved. Changes apply to subsequent requests.']);
+        $target = $f['kind'] === 'user' ? \App\Models\User::findOrFail($f['id']) : null;
+        return response()->json(['status' => true, 'message' => 'Assignments saved. Effective access still respects account restrictions and Admin ceilings.', 'data' => $target ? ['effective' => $p->effective($target), 'warnings' => $p->assignmentWarnings($target)] : null]);
     }
 
     public function audit(Request $r)

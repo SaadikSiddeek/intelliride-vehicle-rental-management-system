@@ -47,3 +47,17 @@ test("login lands on a permitted page or appearance settings without inventing d
   assert.equal(firstAllowedPage(user(["customers.view"])), "/customer-management/manage");
   assert.equal(firstAllowedPage(user([])), "/settings");
 });
+
+for (const [label, grants, page] of [
+  ['Normal A dashboard only', ['dashboard.view'], '/dashboard'],
+  ['Normal B customer view/create', ['customers.view', 'customers.create'], '/customer-management/manage'],
+  ['Normal C bookings read only', ['bookings.view'], '/booking-management/manage'],
+  ['Normal D no grants', [], null],
+]) {
+  test(label + ' sidebar/route/action decisions follow server grants', () => {
+    const account = user(grants);
+    for (const route of Object.keys(pagePermissions)) assert.equal(canVisit(account, route), route === page);
+    for (const action of ['customers.edit', 'customers.deactivate', 'bookings.create', 'bookings.confirm', 'bookings.cancel', 'permissions.assign', 'reports.export', 'invoices.print']) assert.equal(hasPermission(account, action), false);
+    assert.equal(hasPermission(account, 'customers.create'), label.startsWith('Normal B'));
+  });
+}
