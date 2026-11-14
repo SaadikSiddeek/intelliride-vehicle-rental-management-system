@@ -10,7 +10,9 @@ return new class extends Migration
     public function up(): void
     {
         // Match the foreign key to the actual vehicle_tb.ID type.
-        $primaryKey = DB::selectOne(
+        $primaryKey = DB::connection()->getDriverName() === 'sqlite'
+            ? (object) ['data_type' => Schema::getColumnType('vehicle_tb', 'ID'), 'column_type' => Schema::getColumnType('vehicle_tb', 'ID')]
+            : DB::selectOne(
             'SELECT DATA_TYPE AS data_type, COLUMN_TYPE AS column_type
              FROM information_schema.COLUMNS
              WHERE TABLE_SCHEMA = DATABASE()
@@ -28,6 +30,7 @@ return new class extends Migration
             'smallint' => 'smallInteger',
             'mediumint' => 'mediumInteger',
             'int' => 'integer',
+            'integer' => 'integer',
             'bigint' => 'bigInteger',
         ];
 

@@ -1,3 +1,5 @@
+import usePermissions from "@/hooks/usePermissions";
+import PermissionGate from "@/components/PermissionGate";
 import useRecordLink from "@/hooks/useRecordLink";
 import { tableAction } from "@/lib/table-actions";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -40,13 +42,14 @@ function Settlement({ calculation: c }) {
 }
 
 export default function Return() {
+  const { can } = usePermissions();
   const methods = useForm({ defaultValues: EMPTY });
   const review = useForm({ defaultValues: REVIEW });
   const { register, reset, setError, clearErrors, handleSubmit, formState: { errors, isDirty } } = methods;
   const [open, setOpen] = useState(false), [record, setRecord] = useState(null), [rental, setRental] = useState(null), [photos, setPhotos] = useState([]);
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(false), [pageError, setPageError] = useState(""), [formError, setFormError] = useState(""), [success, setSuccess] = useState("");
   const tableElement = useRef(null), table = useRef(null), listRequest = useRef(null), formRequest = useRef(null), contextRequest = useRef(null), statusFilter = useRef("");
-  const readonly = record?.status === "Finalized";
+  const readonly = record?.status === "Finalized" || !can("returns.assess");
   const loadTable = useCallback(async () => {
     listRequest.current?.abort(); const request = new AbortController(); listRequest.current = request; setLoading(true); setPageError("");
     try { const { data } = await axiosClient.post("/get_returns", { status: statusFilter.current }, { signal: request.signal }); if (!request.signal.aborted) await table.current?.setData(data.data || []); }
@@ -119,8 +122,8 @@ export default function Return() {
     <div className="management-page"><div className="page-container">
       {pageError && <div role="alert" className="form-alert mb-5">{pageError} <button type="button" onClick={loadTable} className="underline">Reload returns</button></div>}
       {success && <div role="status" className="mb-5 rounded-lg border border-border bg-[var(--info-soft)] px-4 py-3 text-sm text-primary">{success}</div>}
-      <button type="button" className="btn-primary management-add mb-6" disabled={busy} onClick={() => void openForm()}><Plus size={16} className="mr-2" />New Return Assessment</button>
-      <CustomDrawer open={open} setOpen={(next) => { if (!formRequest.current) setOpen(next); }} saving={busy} title={record ? `Return Assessment ${record.ID}` : "Return Assessment"} description="All amounts are calculated on the backend. The receiving account and review history are preserved." submitText={readonly ? "Close" : busy ? "Saving..." : "Save Assessment"} onSubmit={(event) => readonly ? setOpen(false) : handleSubmit(save)(event)} size="max-w-3xl">
+      <PermissionGate permission="returns.assess"><button type="button" className="btn-primary management-add mb-6" disabled={busy} onClick={() => void openForm()}><Plus size={16} className="mr-2" />New Return Assessment</button></PermissionGate>
+      <CustomDrawer canSubmit={can("returns.assess")} open={open} setOpen={(next) => { if (!formRequest.current) setOpen(next); }} saving={busy} title={record ? `Return Assessment ${record.ID}` : "Return Assessment"} description="All amounts are calculated on the backend. The receiving account and review history are preserved." submitText={readonly ? "Close" : busy ? "Saving..." : "Save Assessment"} onSubmit={(event) => readonly ? setOpen(false) : handleSubmit(save)(event)} size="max-w-3xl">
         {formError && <div role="alert" className="form-alert mb-4">{formError}</div>}
         {busy && <p role="status" className="mb-4 text-sm">Processing return assessment...</p>}
         <FormProvider {...methods}><form noValidate onSubmit={(event) => handleSubmit(save)(event)}><fieldset disabled={busy || readonly} className="m-0 min-w-0 space-y-5 border-0 p-0">
@@ -149,7 +152,7 @@ export default function Return() {
           </div></FormSection>
         </fieldset></form></FormProvider>
         <div className="mt-5 space-y-5"><FormSection title="Backend settlement calculation"><Settlement calculation={record?.calculation} />{isDirty && <p role="status" className="mt-3 text-sm text-destructive">Save changes and reopen this assessment to refresh the calculation before approving it.</p>}</FormSection>
-          {record?.status === "Pending Review" && <FormProvider {...review}><form noValidate onSubmit={(event) => review.handleSubmit(finalize)(event)}><FormSection title="Staff review and approval"><div className="space-y-4">
+          {can("returns.review") && can("returns.finalize") && record?.status === "Pending Review" && <FormProvider {...review}><form noValidate onSubmit={(event) => review.handleSubmit(finalize)(event)}><FormSection title="Staff review and approval"><div className="space-y-4">
             <div><label htmlFor="review_notes" className="mb-2 block text-sm font-semibold">Review and settlement reason *</label><Textarea id="review_notes" rows={3} {...review.register("review_notes", required("Review notes"))} /><FieldError name="review_notes" errors={review.formState.errors} /></div>
             {[["review_approved", "I reviewed the rental, evidence, calculations and original payment records."], ["damage_approved", "I approve the documented damage charge, if proposed."], ["deposit_deduction_approved", "I authorize the proposed deposit deduction, if any."], ["vehicle_release_approved", "I inspected and approve making the vehicle Available, if selected."]].map(([name, label]) => <div key={name}><label className="flex items-start gap-2 text-sm"><input type="checkbox" {...review.register(name, name === "review_approved" ? required("Staff review") : {})} />{label}</label><FieldError name={name} errors={review.formState.errors} /></div>)}
             <button type="submit" className="btn-primary" disabled={busy || isDirty || photos.length > 0 || !!record.calculation.blockers?.length}>Finalize Reviewed Return</button>

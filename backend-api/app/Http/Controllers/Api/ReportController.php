@@ -19,7 +19,12 @@ class ReportController extends Controller
     {
         app(RentalController::class)->authorizeStaff($r);
 
-        return response()->json(['status' => true, 'data' => ['types' => ReportService::TYPES, 'can_include_identity' => app(\App\Services\AccessService::class)->identity($r->user()), 'max_rows' => 20000, 'pdf_max_rows' => 500]]);
+        $types = ReportService::TYPES;
+        $p = app(\App\Services\PermissionService::class);
+        if ($p->enabled() && ! $p->can($r->user(), 'reports.finance')) {
+            $types = array_diff_key($types, array_flip(['financial', 'outstanding_invoices', 'daily_transactions', 'deposit_history']));
+        }
+        return response()->json(['status' => true, 'data' => ['types' => $types, 'can_include_identity' => app(\App\Services\AccessService::class)->identity($r->user()), 'max_rows' => 20000, 'pdf_max_rows' => 500]]);
     }
 
     public function customerFilter(Request $r)
@@ -52,6 +57,10 @@ class ReportController extends Controller
             throw ValidationException::withMessages(['to' => 'End date cannot precede start date.']);
         }
         $columns = $service->columns($f['type'], ! empty($f['include_identity']));
+        $permissions = app(\App\Services\PermissionService::class);
+        if ($permissions->enabled() && ! $permissions->can($r->user(), 'reports.finance')) {
+            $columns = array_values(array_diff($columns, ['Invoice Total', 'Amount Paid', 'Balance', 'Recognized Revenue', 'Subtotal', 'Tax', 'Discount', 'Additional Charges', 'Rental Cash Received', 'Deposit Received', 'Deposit Applied', 'Deposit Refunded', 'Deposit Held']));
+        }
         $rows = [];
         $totals = [];
         $scanned = 0;

@@ -1,3 +1,5 @@
+import usePermissions from "@/hooks/usePermissions";
+import PermissionGate from "@/components/PermissionGate";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { Plus, Trash2, Undo2, TriangleAlert } from "lucide-react";
@@ -156,6 +158,7 @@ function NewImagePreview({ file, onRemove }) {
 }
 
 export default function VehicleRegistration() {
+  const { can } = usePermissions();
   const [openDrawer, setOpenDrawer] = useState(false);
   const [updateId, setUpdateId] = useState("");
   const [options, setOptions] = useState(EMPTY_OPTIONS);
@@ -729,7 +732,7 @@ export default function VehicleRegistration() {
           width: 100,
           headerSort: false,
           hozAlign: "center",
-          formatter: () => `
+          formatter: () => can("vehicles.edit") ? (`
             <button
               type="button"
               class="table-action-btn"
@@ -751,7 +754,7 @@ export default function VehicleRegistration() {
                 <path d="m16 3 5 5M9 15l-1 4 4-1L22 8a2.1 2.1 0 0 0-5-5Z"/>
               </svg>
             </button>
-          `,
+          `) : "",
           cellClick: (event, cell) => {
             if (!event.target.closest("button")) return;
 
@@ -771,7 +774,7 @@ export default function VehicleRegistration() {
 
       if (table.current === vehicleTable) table.current = null;
     };
-  }, [fetchVehicleData, getVehicles]);
+  }, [fetchVehicleData, getVehicles, can]);
 
   // ================= FORM FIELDS =================
 
@@ -828,7 +831,7 @@ export default function VehicleRegistration() {
           )}
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-            <button
+            <PermissionGate permission="vehicles.create"><button
               type="button"
               className="btn-primary management-add"
               disabled={isBusy || tableLoading}
@@ -836,9 +839,9 @@ export default function VehicleRegistration() {
             >
               <Plus size={16} aria-hidden="true" className="mr-2" />
               Add Vehicle
-            </button>
+            </button></PermissionGate>
 
-            <CustomDrawer
+            <CustomDrawer canSubmit={can("vehicles.create") && !isEditing || can("vehicles.edit") && isEditing}
               open={openDrawer}
               setOpen={handleDrawerChange}
               saving={isBusy}

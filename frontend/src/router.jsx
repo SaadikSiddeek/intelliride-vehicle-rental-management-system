@@ -7,6 +7,7 @@ const Settings = lazy(() => import("./views/Settings"));
 import { createBrowserRouter } from "react-router-dom";
 const Login = lazy(() => import("./views/Login"));
 const Signup = lazy(() => import("./views/Signup"));
+const Permissions = lazy(() => import("./views/permissions/Permissions"));
 const Users = lazy(() => import("./views/users/Users"));
 const NotFound = lazy(() => import("./views/NotFound"));
 import DefaultLayout from "./components/DefaultLayout";
@@ -52,6 +53,7 @@ const router = createBrowserRouter([
     path: "/",
     element: <DefaultLayout />,
     children: [
+      { path: "/permission-management/manage", element: <Permissions /> },
       { path: "/ai/agent", element: <AIAgent /> },
       { path: "/ai/chatbot", element: <AIChatbot /> },
       { path: "/settings", element: <Settings /> },

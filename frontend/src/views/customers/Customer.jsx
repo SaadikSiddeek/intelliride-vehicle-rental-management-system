@@ -1,3 +1,5 @@
+import usePermissions from "@/hooks/usePermissions";
+import PermissionGate from "@/components/PermissionGate";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { Plus, TriangleAlert } from "lucide-react";
@@ -226,13 +228,13 @@ function DocumentField({ kind, savedId, change, onChange, onError, errors }) {
 
       <div className="mt-2 flex flex-wrap gap-3 text-xs font-semibold text-primary">
         {savedId && (
-          <button
+          <PermissionGate permission="customers.documents.view"><button
             type="button"
             disabled={downloading}
             onClick={downloadSavedFile}
           >
             {downloading ? "Downloading…" : "Download saved copy"}
-          </button>
+          </button></PermissionGate>
         )}
 
         {(file || (savedId && change !== null)) && (
@@ -257,6 +259,7 @@ function DocumentField({ kind, savedId, change, onChange, onError, errors }) {
 }
 
 export default function Customer() {
+  const { can } = usePermissions();
   const methods = useForm({ defaultValues: EMPTY_FORM });
   const {
     register,
@@ -452,7 +455,7 @@ export default function Customer() {
           width: 90,
           hozAlign: "center",
           headerSort: false,
-          formatter: () => EDIT_BUTTON,
+          formatter: () => can("customers.edit") ? (EDIT_BUTTON) : "",
           cellClick(event, cell) {
             if (event.target.closest("button"))
               void editCustomer(cell.getValue());
@@ -471,7 +474,7 @@ export default function Customer() {
       instance.destroy();
       table.current = null;
     };
-  }, [editCustomer, getCustomers]);
+  }, [editCustomer, getCustomers, can]);
 
   function openCreate() {
     if (formRequest.current) return;
@@ -598,7 +601,7 @@ export default function Customer() {
           )}
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-            <button
+            <PermissionGate permission="customers.create"><button
               type="button"
               className="btn-primary management-add"
               onClick={openCreate}
@@ -606,9 +609,9 @@ export default function Customer() {
             >
               <Plus size={16} aria-hidden="true" className="mr-2" />
               Add Customer
-            </button>
+            </button></PermissionGate>
 
-            <CustomDrawer
+            <CustomDrawer canSubmit={can("customers.create") && !isEditing || can("customers.edit") && isEditing}
               open={open}
               setOpen={changeDrawer}
               saving={busy}

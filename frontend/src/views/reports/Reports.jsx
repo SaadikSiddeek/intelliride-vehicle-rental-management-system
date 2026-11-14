@@ -1,6 +1,8 @@
+import usePermissions from "@/hooks/usePermissions";
+import PermissionGate from "@/components/PermissionGate";
 import DateRange from "@/components/forms/DateRange";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FormProvider, useForm } from "react-hook-form";
+import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { useNavigate, useParams } from "react-router-dom";
 import { TabulatorFull as Tabulator } from "tabulator-tables";
 import "tabulator-tables/dist/css/tabulator.min.css";
@@ -12,8 +14,10 @@ import CarLoader from "@/components/CarLoader";
 import { Input, NativeSelect } from "@/components/ui/input";
 
 function ReportScreen({ type }) {
+  const { can } = usePermissions();
   const navigate = useNavigate();
   const methods = useForm({ defaultValues: { from: "", to: "", customer_id: "", vehicle_id: "", branch_id: "", staff_id: "", status: "", include_identity: false, q: "", overdue_only: false, per_page: 50 } });
+  const includeIdentity = useWatch({ control: methods.control, name: "include_identity" });
   const { register, handleSubmit, getValues, setError, clearErrors } = methods;
   const [types, setTypes] = useState({}), [canIdentity, setCanIdentity] = useState(false), [meta, setMeta] = useState(null), [totals, setTotals] = useState({});
   const [loading, setLoading] = useState(false), [exporting, setExporting] = useState(false), [error, setErrorMessage] = useState("");
@@ -78,7 +82,7 @@ function ReportScreen({ type }) {
         <div><label htmlFor="report_size" className="mb-2 block text-sm font-semibold">Rows per page</label><NativeSelect id="report_size" {...register("per_page")}>{[10, 50, 100, 200].map((size) => <option key={size} value={size}>{size}</option>)}</NativeSelect></div>
       </div><div className="mt-4 flex flex-wrap items-center gap-4"><button type="submit" className="btn-primary" disabled={loading}>Apply Filters</button>{["rental_history","staff_handover","customer_history"].includes(type) && <label className="flex items-center gap-2 text-sm"><input type="checkbox" {...register("overdue_only")} />Only currently overdue active rentals</label>}
         {canIdentity && ["rental_history", "staff_handover", "customer_history"].includes(type) && <label className="flex items-center gap-2 text-sm"><input type="checkbox" {...register("include_identity")} />Include authorized NIC/passport details</label>}<p className="text-xs text-muted-foreground">Blank dates use the current month. Identity details require separate configured export permission.</p></div></FormSection></form></FormProvider>
-      <div className="mb-5 flex flex-wrap gap-3">{[["html", "Print Report"], ["xlsx", "Export Excel (.xlsx)"], ["csv", "Export CSV (.csv)"], ["pdf", "Download PDF"]].map(([format, label]) => <button key={format} type="button" className="btn-primary" disabled={loading || exporting || !meta} onClick={() => void exportReport(format)}>{exporting ? "Preparing..." : label}</button>)}</div>
+      <div className="mb-5 flex flex-wrap gap-3">{[["html", "Print Report"], ["xlsx", "Export Excel (.xlsx)"], ["csv", "Export CSV (.csv)"], ["pdf", "Download PDF"]].map(([format, label]) => <PermissionGate key={format} permission={format === "html" ? "reports.print" : "reports.export"}><button key={format} type="button" className="btn-primary" disabled={loading || exporting || !meta || (!!includeIdentity && !can("reports.identity.export"))} onClick={() => void exportReport(format)}>{exporting ? "Preparing..." : label}</button></PermissionGate>)}</div>
       {meta && <p className="mb-4 text-sm text-muted-foreground">{meta.total} filtered records · {meta.filters.from} to {meta.filters.to} · Generated {meta.generated_at} Asia/Colombo. Exports use the currently displayed report filters across all pages; Apply Filters updates both.</p>}
       <div id="report-tb" className="relative overflow-hidden rounded-xl border border-border bg-card p-5" aria-busy={loading}><div ref={tableElement} className="overflow-hidden rounded-xl border border-border" /></div>
       {meta && <div className="mt-4 flex items-center justify-between gap-4"><button type="button" className="btn-primary" disabled={loading || page <= 1} onClick={() => void load(page - 1)}>Previous</button><p className="text-sm">Page {page} of {meta.last_page}</p><button type="button" className="btn-primary" disabled={loading || page >= meta.last_page} onClick={() => void load(page + 1)}>Next</button></div>}
@@ -87,4 +91,5 @@ function ReportScreen({ type }) {
     </div></div><CarLoader targetId="report-tb" show={loading} text="Loading Report" />
   </>;
 }
-export default function Reports() { const { type = "rental_history" } = useParams(); return <ReportScreen key={type} type={type} />; }
+export default function Reports() {
+ const { type = "rental_history" } = useParams(); return <ReportScreen key={type} type={type} />; }

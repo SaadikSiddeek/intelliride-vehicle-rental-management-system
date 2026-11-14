@@ -93,3 +93,19 @@ test('finance registers preserve source ledgers and apply date method status fil
  $this->postJson('/api/invoice_filter',['q'=>'Test'])->assertOk()->assertJsonCount(1,'data');
  config(['customer_access.users'=>[]]);foreach(['get_invoices','get_payments','get_refunds','save_invoice_payment','save_deposit_refund']as$route)$this->postJson('/api/'.$route)->assertForbidden();
 });
+
+test('payment and refund staff receive narrow settlement context without full invoice access', function () {
+    (require database_path('migrations/2026_11_13_210000_create_authorization_tables.php'))->up();
+    (new \Database\Seeders\PermissionCatalogSeeder)->run();
+    DB::table('authorization_state_tb')->where('ID', 1)->update(['enabled' => true]);
+    DB::table('user_permission_tb')->insert(['user_id' => 701, 'permission_code' => 'payments.create', 'effect' => 'allow']);
+    Sanctum::actingAs(User::findOrFail(701));
+    $this->postJson('/api/fetch_invoice_data', ['upd_id' => 1])->assertForbidden();
+    $this->postJson('/api/invoice_settlement_context', ['upd_id' => 1])->assertOk()
+        ->assertJsonPath('data.summary.balance', '8000.50')
+        ->assertJsonMissingPath('data.snapshot')->assertJsonMissingPath('data.payments')->assertJsonMissingPath('data.deposits');
+    DB::table('user_permission_tb')->where('user_id', 701)->update(['permission_code' => 'deposits.refund']);
+    $this->postJson('/api/invoice_settlement_context', ['upd_id' => 1])->assertOk();
+    DB::table('user_permission_tb')->where('user_id', 701)->update(['permission_code' => 'payments.view']);
+    $this->postJson('/api/invoice_settlement_context', ['upd_id' => 1])->assertForbidden();
+});

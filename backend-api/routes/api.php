@@ -27,7 +27,13 @@ use App\Http\Controllers\Api\RentalPackageController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'active.account'])->group(function () {
+Route::middleware(['auth:sanctum', 'active.account', 'permissions'])->group(function () {
+    Route::post('/authorization_setup', [\App\Http\Controllers\Api\PermissionController::class, 'setup']);
+    Route::post('/permission_targets', [\App\Http\Controllers\Api\PermissionController::class, 'targets']);
+    Route::post('/permission_catalog', [\App\Http\Controllers\Api\PermissionController::class, 'catalog']);
+    Route::post('/permission_target', [\App\Http\Controllers\Api\PermissionController::class, 'target']);
+    Route::post('/save_permissions', [\App\Http\Controllers\Api\PermissionController::class, 'save']);
+    Route::post('/authorization_audit', [\App\Http\Controllers\Api\PermissionController::class, 'audit']);
     Route::get('/business_profile', [\App\Http\Controllers\Api\BusinessProfileController::class,'show']);
     Route::post('/save_business_profile', [\App\Http\Controllers\Api\BusinessProfileController::class,'save']);
     Route::get('/business_branding', [\App\Http\Controllers\Api\BusinessProfileController::class,'branding']);
@@ -140,6 +146,7 @@ Route::middleware(['auth:sanctum', 'active.account'])->group(function () {
         Route::post('/invoice_filter', 'invoiceFilter');
         Route::post('/get_invoices', 'getInvoices');
         Route::post('/fetch_invoice_data', 'fetchInvoiceData');
+        Route::post('/invoice_settlement_context', 'settlementContext');
         Route::post('/get_payments', 'getPayments');
         Route::post('/save_invoice_payment', 'savePayment');
         Route::post('/get_refunds', 'getRefunds');
@@ -205,6 +212,7 @@ Route::middleware(['auth:sanctum', 'active.account'])->group(function () {
         Route::post('/vehciel_category_filter', 'vehicleCatInputFilter');
     });
 
+    Route::post('/auth/password', [AuthController::class, 'changeInitialPassword'])->middleware('throttle:5,1');
     Route::post('/auth/activity', [AuthController::class, 'activity']);
     Route::post('/logout', [AuthController::class, 'logout']);
 });

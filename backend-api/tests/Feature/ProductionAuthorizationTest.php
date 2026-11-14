@@ -144,11 +144,17 @@ it('reads deployment-local assignments through the actual environment configurat
 });
 
 it('does not provision default privileged accounts or business records during deployment seeding', function () {
-    $before = ['users' => DB::table('users_tb')->count(), 'roles' => DB::table('roles_tb')->count(), 'branches' => DB::table('branch_tb')->count()];
+    // This test exercises the current reference pipeline on an existing legacy installation.
+    (require database_path('migrations/2026_11_13_210000_create_authorization_tables.php'))->up();
+    $before = ['users' => DB::table('users_tb')->count(), 'branches' => DB::table('branch_tb')->count()];
+    $roles = DB::table('roles_tb')->whereIn('ID', [10, 11])->orderBy('ID')->get()->toJson();
     $password = DB::table('users_tb')->where('ID', 701)->value('password');
     app(DatabaseSeeder::class)->run();
     expect(DB::table('users_tb')->count())->toBe($before['users'])
-        ->and(DB::table('roles_tb')->count())->toBe($before['roles'])
+        ->and(DB::table('roles_tb')->whereIn('ID', [10, 11])->orderBy('ID')->get()->toJson())->toBe($roles)
+        ->and(DB::table('permission_tb')->count())->toBe(count(\App\Services\PermissionCatalog::definitions()))
+        ->and(DB::table('customer_tb')->count())->toBe(0)
+        ->and(DB::table('invoice_tb')->count())->toBe(0)
         ->and(DB::table('branch_tb')->count())->toBe($before['branches'])
         ->and(DB::table('users_tb')->where('ID', 701)->value('password'))->toBe($password)
         ->and(DB::table('users_tb')->where('username', 'admin')->exists())->toBeFalse();

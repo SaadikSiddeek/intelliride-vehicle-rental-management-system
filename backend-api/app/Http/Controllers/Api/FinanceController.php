@@ -71,6 +71,15 @@ class FinanceController extends Controller
         return response()->json(['status' => true, 'data' => $rows])->header('Cache-Control', 'private, no-store');
     }
 
+    public function settlementContext(Request $request, FinanceService $service)
+    {
+        $this->authorizeStaff($request);
+        $f = $request->validate(['upd_id' => ['required', 'integer', 'min:1']]);
+        $invoice = DB::table('invoice_tb')->where('ID', $f['upd_id'])->where('status', 'Issued')->first();
+        abort_unless($invoice, 404, 'Invoice not found.');
+        return response()->json(['status' => true, 'data' => ['ID' => $invoice->ID, 'summary' => $service->summary($invoice)]])->header('Cache-Control', 'private, no-store');
+    }
+
     public function fetchInvoiceData(Request $request, FinanceService $service)
     {
         $this->authorizeStaff($request);

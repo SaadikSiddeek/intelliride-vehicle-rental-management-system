@@ -1,3 +1,5 @@
+import usePermissions from "@/hooks/usePermissions";
+import PermissionGate from "@/components/PermissionGate";
 import useRecordLink from "@/hooks/useRecordLink";
 import { tableAction } from "@/lib/table-actions";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -98,6 +100,7 @@ function PricingSummary({ quote, paid = 0 }) {
 }
 
 export default function Booking() {
+  const { can } = usePermissions();
   const methods = useForm({ defaultValues: EMPTY_FORM });
   const {
     register,
@@ -135,7 +138,7 @@ export default function Booking() {
   const listRequest = useRef(null);
   const formRequest = useRef(null);
   const listStatus = useRef("");
-  const readOnly = record && record.status !== "Draft";
+  const readOnly = record && (record.status !== "Draft" || !can("bookings.edit"));
   const paid =
     record?.payments?.reduce(
       (sum, payment) => sum + Number(payment.amount),
@@ -401,7 +404,7 @@ export default function Booking() {
               {success}
             </div>
           )}
-          <button
+          <PermissionGate permission="bookings.create"><button
             type="button"
             className="btn-primary management-add mb-6"
             disabled={busy}
@@ -409,8 +412,8 @@ export default function Booking() {
           >
             <Plus size={16} className="mr-2" />
             Add Booking
-          </button>
-          <CustomDrawer
+          </button></PermissionGate>
+          <CustomDrawer canSubmit={readOnly || can(record ? "bookings.edit" : "bookings.create")}
             open={open}
             setOpen={(next) => {
               if (!formRequest.current) setOpen(next);
@@ -723,7 +726,7 @@ export default function Booking() {
                         "status",
                         "Booking status",
                         <NativeSelect id="status" {...register("status")}>
-                          {(readOnly ? STATUSES : ["Draft", "Confirmed"]).map(
+                          {(readOnly ? STATUSES : can("bookings.confirm") ? ["Draft", "Confirmed"] : ["Draft"]).map(
                             (status) => (
                               <option key={status} value={status}>
                                 {status}
@@ -766,13 +769,14 @@ export default function Booking() {
                     }
                     paid={paid}
                   />
+                  {record?.status === "Draft" && can("bookings.confirm") && <button type="button" className="btn-primary" disabled={busy} onClick={() => void changeStatus("Confirmed")}>Confirm saved booking</button>}
                   {record?.payments?.length > 0 && (
                     <p className="text-sm">
                       {record.payments.length} payment record(s) retained.
                       Payment status: {record.payment_status}.
                     </p>
                   )}
-                  {record && ["Draft", "Confirmed"].includes(record.status) && (
+                  {can("bookings.cancel") && record && ["Draft", "Confirmed"].includes(record.status) && (
                     <div className="flex flex-wrap gap-3">
                       <button
                         type="button"

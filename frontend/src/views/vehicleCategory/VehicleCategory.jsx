@@ -1,3 +1,5 @@
+import usePermissions from "@/hooks/usePermissions";
+import PermissionGate from "@/components/PermissionGate";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Plus, TriangleAlert } from "lucide-react";
@@ -25,6 +27,7 @@ function getErrorMessage(error, fallback) {
 }
 
 export default function VehicleCategory() {
+  const { can } = usePermissions();
   // ================= STATE =================
 
   const [openDrawer, setOpenDrawer] = useState(false);
@@ -356,7 +359,7 @@ export default function VehicleCategory() {
           width: 100,
           headerSort: false,
 
-          formatter: () => `
+          formatter: () => can("categories.edit") ? (`
             <button
               type="button"
               class="table-action-btn"
@@ -378,7 +381,7 @@ export default function VehicleCategory() {
                 <path d="m16 3 5 5M9 15l-1 4 4-1L22 8a2.1 2.1 0 0 0-5-5Z"/>
               </svg>
             </button>
-          `,
+          `) : "",
 
           cellClick: (event, cell) => {
             if (!event.target.closest("button")) return;
@@ -403,7 +406,7 @@ export default function VehicleCategory() {
         table.current = null;
       }
     };
-  }, [fetchVehicleCategoryData, getVehicleCategories]);
+  }, [fetchVehicleCategoryData, getVehicleCategories, can]);
 
   // ================= BUTTON TEXT =================
 
@@ -466,7 +469,7 @@ export default function VehicleCategory() {
           )}
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-            <button
+            <PermissionGate permission="categories.create"><button
               type="button"
               className="btn-primary management-add"
               disabled={isBusy}
@@ -474,9 +477,9 @@ export default function VehicleCategory() {
             >
               <Plus size={16} aria-hidden="true" className="mr-2" />
               Add Vehicle Category
-            </button>
+            </button></PermissionGate>
 
-            <CustomDrawer
+            <CustomDrawer canSubmit={can("categories.create") && !isEditing || can("categories.edit") && isEditing}
               open={openDrawer}
               setOpen={handleDrawerChange}
               saving={isBusy}

@@ -1,3 +1,5 @@
+import PermissionGate from "@/components/PermissionGate";
+import usePermissions from "@/hooks/usePermissions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { TriangleAlert, UserRoundCog, Eye, EyeOff } from "lucide-react";
@@ -6,7 +8,7 @@ import { TabulatorFull as Tabulator } from "tabulator-tables";
 import FieldError from "@/components/ErrorField";
 import TableSearch from "@/components/TableSearch";
 import FormSection from "@/components/forms/FormSection";
-import { Input } from "@/components/ui/input";
+import { Input, NativeSelect } from "@/components/ui/input";
 import PageHeader from "@/components/PageHeader";
 
 import axiosClient from "../../axios-client";
@@ -25,9 +27,11 @@ const DEFAULT_VALUES = {
   role_id: "",
   password: "",
   password_confirmation: "",
+  user_type: "user", status: true, reason: "",
 };
 
 export default function Users() {
+  const { isRbac, isSuperAdmin, can } = usePermissions();
   // ================= PAGE STATE =================
 
   const [openDrawer, setOpenDrawer] = useState(false);
@@ -155,6 +159,7 @@ export default function Users() {
             email: user.email ?? "",
             emp_id: validEmployeeId ? employeeId : "",
             role_id: String(user.role_id ?? ""),
+            user_type: user.user_type ?? "user", status: Boolean(user.status), reason: "",
             password: "",
             password_confirmation: "",
           },
@@ -192,7 +197,7 @@ export default function Users() {
     setSaving(true);
 
     const payload = {
-      form_data: formData,
+      form_data: isRbac ? {...formData, ...(!isSuperAdmin ? { user_type: "user" } : {})} : formData,
     };
 
     // Including upd_id tells the backend to update.
@@ -294,6 +299,7 @@ export default function Users() {
       `,
 
       columns: [
+        ...(isRbac ? [{title: "Account type", field: "user_type", formatter: cell => ({super_admin: "Super Admin", admin: "Admin", user: "Normal User"})[cell.getValue()] || "Unknown", minWidth: 135}, {title: "Status", field: "status", formatter: cell => cell.getValue() ? "Active" : "Inactive", minWidth: 100}] : []),
         {
           title: "Username",
           field: "username",
@@ -314,7 +320,7 @@ export default function Users() {
           width: 110,
           headerSort: false,
 
-          formatter: () => `
+          formatter: (cell) => can("users.edit") && (!isRbac || cell.getRow().getData().user_type !== "super_admin") ? (`
             <button
               type="button"
               class="table-action-btn"
@@ -340,7 +346,7 @@ export default function Users() {
                 />
               </svg>
             </button>
-          `,
+          `) : "",
 
           cellClick: (event, cell) => {
             if (!event.target.closest("button")) return;
@@ -363,7 +369,7 @@ export default function Users() {
         table.current = null;
       }
     };
-  }, [fetchUserData, getUsers]);
+  }, [fetchUserData, getUsers, can, isRbac]);
 
   // ================= SUBMIT BUTTON TEXT =================
 
@@ -412,7 +418,7 @@ export default function Users() {
           )}
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-            <button
+            <PermissionGate permission="users.create"><button
               type="button"
               className="btn-primary management-add"
               onClick={openCreateDrawer}
@@ -420,9 +426,9 @@ export default function Users() {
             >
               <UserRoundCog size={16} aria-hidden="true" className="mr-2" />
               Add User
-            </button>
+            </button></PermissionGate>
 
-            <CustomDrawer
+            <CustomDrawer canSubmit={can("users.create") && !isEditing || can("users.edit") && isEditing}
               open={openDrawer}
               setOpen={handleDrawerChange}
               saving={isBusy}
@@ -467,6 +473,13 @@ export default function Users() {
                     disabled={isBusy}
                     className="m-0 min-w-0 space-y-6 border-0 p-0"
                   >
+                    {isRbac && <FormSection title="Account authority" description="Account type controls administrative authority. The business role supplies permission defaults.">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        {isSuperAdmin && <div><label htmlFor="user_type" className="mb-2 block text-sm font-semibold">User type *</label><NativeSelect id="user_type" {...register("user_type")}><option value="user">Normal User</option><option value="admin">Admin</option></NativeSelect><FieldError errors={errors} name="user_type" /></div>}
+                        <div><label htmlFor="user_status" className="mb-2 block text-sm font-semibold">Account status</label><NativeSelect disabled={isEditing && !can("users.deactivate")} id="user_status" {...register("status", { setValueAs: value => value === true || value === 'true' })}><option value="true">Active</option><option value="false">Inactive</option></NativeSelect></div>
+                        <div className="sm:col-span-2"><label htmlFor="account_reason" className="mb-2 block text-sm font-semibold">Reason for change *</label><Input id="account_reason" maxLength={500} {...register("reason", {required: 'Enter a reason for the audit trail.'})} /><FieldError errors={errors} name="reason" /></div>
+                      </div>
+                    </FormSection>}
                     <FormSection
                       title="Account details"
                       description="Identify the person and their account email."
@@ -627,8 +640,8 @@ export default function Users() {
                                     ? false
                                     : "Password is required",
                                   minLength: {
-                                    value: 8,
-                                    message: "Use at least 8 characters",
+                                    value: isRbac ? 12 : 8,
+                                    message: `Use at least ${isRbac ? 12 : 8} characters`,
                                   },
                                   deps: ["password_confirmation"],
                                 })}

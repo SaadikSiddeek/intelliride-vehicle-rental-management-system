@@ -67,6 +67,20 @@ export function ContextProvider({ children }) {
   );
 
   useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return;
+      axiosClient.get('/user').then(({data}) => { if (!cancelled) setUser(data); }).catch(error => {
+        if (!cancelled && [401, 403].includes(error.response?.status)) clearSession(true);
+      });
+    };
+    const interval = window.setInterval(refresh, 30000);
+    window.addEventListener('focus', refresh);
+    return () => { cancelled = true; window.clearInterval(interval); window.removeEventListener('focus', refresh); };
+  }, [token, clearSession]);
+
+  useEffect(() => {
     const handleExpired = () => clearSession(true);
 
     const handleStorage = (event) => {

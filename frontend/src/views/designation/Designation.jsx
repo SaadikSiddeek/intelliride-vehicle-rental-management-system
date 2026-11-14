@@ -1,3 +1,5 @@
+import usePermissions from "@/hooks/usePermissions";
+import PermissionGate from "@/components/PermissionGate";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Plus, TriangleAlert } from "lucide-react";
@@ -18,6 +20,7 @@ const DEFAULT_VALUES = {
 };
 
 export default function Designation() {
+  const { can } = usePermissions();
   const [openDrawer, setOpenDrawer] = useState(false);
   const [updateId, setUpdateId] = useState("");
 
@@ -277,7 +280,7 @@ export default function Designation() {
           width: 110,
           headerSort: false,
 
-          formatter: () => `
+          formatter: () => can("designations.edit") ? (`
             <button
               type="button"
               class="table-action-btn"
@@ -299,7 +302,7 @@ export default function Designation() {
                 <path d="m16 3 5 5M9 15l-1 4 4-1L22 8a2.1 2.1 0 0 0-5-5Z"/>
               </svg>
             </button>
-          `,
+          `) : "",
 
           cellClick: (event, cell) => {
             if (!event.target.closest("button")) return;
@@ -321,7 +324,7 @@ export default function Designation() {
         table.current = null;
       }
     };
-  }, [fetchDesignationData, getDesignations]);
+  }, [fetchDesignationData, getDesignations, can]);
 
   let submitText = isEditing ? "Update Designation" : "Create Designation";
 
@@ -369,7 +372,7 @@ export default function Designation() {
           )}
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-            <button
+            <PermissionGate permission="designations.create"><button
               type="button"
               className="btn-primary management-add"
               onClick={openCreateDrawer}
@@ -377,9 +380,9 @@ export default function Designation() {
             >
               <Plus size={16} aria-hidden="true" className="mr-2" />
               Add Designation
-            </button>
+            </button></PermissionGate>
 
-            <CustomDrawer
+            <CustomDrawer canSubmit={can("designations.create") && !isEditing || can("designations.edit") && isEditing}
               open={openDrawer}
               setOpen={handleDrawerChange}
               saving={isBusy}

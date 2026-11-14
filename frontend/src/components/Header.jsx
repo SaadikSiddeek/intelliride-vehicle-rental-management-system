@@ -14,6 +14,7 @@ import {
   CircleHelp,
 } from "lucide-react";
 import ProductTour from "./layout/ProductTour";
+import { canVisit } from "@/lib/permissions";
 import { navigationItems } from "./layout/navigation";
 import ThemeToggle from "./layout/ThemeToggle";
 import { Button } from "./ui/button";
@@ -95,8 +96,8 @@ export default function Header({ user, onLogout, setMobileOpen }) {
           <div className="profile-popover">
             <strong>{user?.display_name || user?.name}</strong>
             <p>{user?.email}</p>
-            <Link to="/my-profile" className="profile-settings-link"><Settings2 size={16} /> My profile</Link>
-            {user?.can_manage_business && <Link to="/company-settings" className="profile-settings-link"><Settings2 size={16} /> Company settings</Link>}
+            {canVisit(user, "/my-profile") && <Link to="/my-profile" className="profile-settings-link"><Settings2 size={16} /> My profile</Link>}
+            {canVisit(user, "/company-settings") && <Link to="/company-settings" className="profile-settings-link"><Settings2 size={16} /> Company settings</Link>}
             <Link to="/settings" className="profile-settings-link">
               <Settings2 size={16} /> Appearance & settings
             </Link>
@@ -134,7 +135,7 @@ export default function Header({ user, onLogout, setMobileOpen }) {
             </div>
             <div className="search-results">
               {navigationItems
-                .filter(i => (!i.adminOnly || user?.can_manage_business) && (!i.permission || user?.permissions?.[i.permission]))
+                .filter(i => canVisit(user, i.to))
                 .filter((i) =>
                   i.label.toLowerCase().includes(query.toLowerCase()),
                 )
@@ -145,7 +146,7 @@ export default function Header({ user, onLogout, setMobileOpen }) {
                     <ChevronRight size={15} />
                   </Link>
                 ))}
-              {!navigationItems.some((i) =>
+              {!navigationItems.filter(i => canVisit(user, i.to)).some((i) =>
                 i.label.toLowerCase().includes(query.toLowerCase()),
               ) && (
                 <p className="empty-search">

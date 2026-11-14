@@ -16,6 +16,9 @@ class UserController extends Controller
      */
     public function createUser(Request $request)
     {
+        if (app(\App\Services\PermissionService::class)->enabled()) {
+            return app(AuthorizedUserController::class)->save($request, app(\App\Services\PermissionService::class));
+        }
         try {
             // Validate the request structure first.
             $requestValidator = Validator::make($request->all(), [
@@ -172,6 +175,9 @@ class UserController extends Controller
      */
     public function getUsers(Request $request)
     {
+        if (app(\App\Services\PermissionService::class)->enabled()) {
+            return app(AuthorizedUserController::class)->index($request);
+        }
         try {
             $users = DB::table('users_tb')
                 ->orderByDesc('ID')
@@ -204,6 +210,9 @@ class UserController extends Controller
      */
     public function fetchUserData(Request $request)
     {
+        if (app(\App\Services\PermissionService::class)->enabled()) {
+            return app(AuthorizedUserController::class)->show($request);
+        }
         try {
             $validator = Validator::make($request->all(), [
                 'upd_id' => ['required', 'integer', 'min:1'],

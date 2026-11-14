@@ -1,3 +1,5 @@
+import usePermissions from "@/hooks/usePermissions";
+import PermissionGate from "@/components/PermissionGate";
 import { DatePicker } from "@/components/DateInput";
 import useRecordLink from "@/hooks/useRecordLink";
 import { tableAction } from "@/lib/table-actions";
@@ -28,6 +30,7 @@ export function InvoiceSummary({ invoice }) {
 }
 
 export default function FinancePage({ mode }) {
+  const { can } = usePermissions();
   const methods = useForm({ defaultValues: EMPTY });
   const { register, handleSubmit, reset, setError, clearErrors, formState: { errors } } = methods;
   const [open, setOpen] = useState(false), [invoice, setInvoice] = useState(null), [entry, setEntry] = useState(null);
@@ -46,12 +49,12 @@ export default function FinancePage({ mode }) {
     if (formRequest.current) return;
     contextRequest.current?.abort(); reset({ ...EMPTY }); requestKey.current = crypto.randomUUID(); setInvoice(null); setEntry(mode === "invoices" ? null : row); setFormError(""); setOpen(true);
     const id = mode === "invoices" ? row?.id : row?.invoice_id;
-    if (!id) return;
+    if (!id || !can("invoices.view")) return;
     const request = new AbortController(); formRequest.current = request; setBusy(true);
     try { const { data } = await axiosClient.post("/fetch_invoice_data", { upd_id: id }, { signal: request.signal }); if (!request.signal.aborted) setInvoice(data.data); }
     catch (error) { if (!request.signal.aborted) setFormError(error.response?.data?.message || error.message); }
     finally { if (formRequest.current === request) formRequest.current = null; if (!request.signal.aborted) setBusy(false); }
-  }, [mode, reset]);
+  }, [mode, reset, can]);
   const openLinkedInvoice = useCallback(id => { if (mode === "invoices") void openForm({ id }); }, [mode, openForm]);
   useRecordLink(openLinkedInvoice);
   useEffect(() => {
@@ -65,7 +68,7 @@ export default function FinancePage({ mode }) {
   async function selectInvoice(id) {
     contextRequest.current?.abort(); setInvoice(null); if (!id) return;
     const request = new AbortController(); contextRequest.current = request;
-    try { const { data } = await axiosClient.post("/fetch_invoice_data", { upd_id: id }, { signal: request.signal }); if (!request.signal.aborted) setInvoice(data.data); }
+    try { const { data } = await axiosClient.post("/invoice_settlement_context", { upd_id: id }, { signal: request.signal }); if (!request.signal.aborted) setInvoice(data.data); }
     catch (error) { if (!request.signal.aborted) setFormError(error.response?.data?.message || "Unable to load invoice settlement."); }
   }
   async function save(values) {
@@ -95,8 +98,9 @@ export default function FinancePage({ mode }) {
     <div className="management-page"><div className="page-container">
       {pageError && <div role="alert" className="form-alert mb-5">{pageError} <button type="button" className="underline" onClick={loadTable}>Reload</button></div>}
       {success && <div role="status" className="mb-5 rounded-lg border border-border bg-[var(--info-soft)] px-4 py-3 text-sm text-primary">{success}</div>}
-      {mode !== "invoices" && <button type="button" className="btn-primary management-add mb-6" disabled={busy} onClick={() => void openForm()}><Plus size={16} className="mr-2" />{mode === "payments" ? "Record Payment" : "Record Deposit Refund"}</button>}
-      <CustomDrawer open={open} setOpen={(next) => { if (!formRequest.current) setOpen(next); }} saving={busy} title={mode === "invoices" ? invoice?.summary.invoice_number || "Invoice Details" : entry ? "Recorded Financial Entry" : mode === "payments" ? "Record Invoice Payment" : "Record Deposit Refund"} description="Issued charges and receipt history are preserved. Security deposits are tracked separately." submitText={readOnly ? "Close" : busy ? "Saving..." : "Record Authorized Entry"} onSubmit={(event) => readOnly ? setOpen(false) : handleSubmit(save)(event)} size="max-w-3xl">
+      {mode !== "invoices" && <PermissionGate permission={mode === "payments" ? "payments.create" : "deposits.refund"}><button type="button" className="btn-primary management-add mb-6" disabled={busy} onClick={() => void openForm()}><Plus size={16} className="mr-2" />{mode === "payments" ? "Record Payment" : "Record Deposit Refund"}</button></PermissionGate>}
+      <CustomDrawer canSubmit={readOnly || can(mode === "payments" ? "payments.create" : "deposits.refund")} open={open} setOpen={(next) => { if (!formRequest.current) setOpen(next); }} saving={busy} title={mode === "invoices" ? invoice?.summary.invoice_number || "Invoice Details" : entry ? "Recorded Financial Entry" : mode === "payments" ? "Record Invoice Payment" : "Record Deposit Refund"} description="Issued charges and receipt history are preserved. Security deposits are tracked separately." submitText={readOnly ? "Close" : busy ? "Saving..." : "Record Authorized Entry"} onSubmit={(event) => readOnly ? setOpen(false) : handleSubmit(save)(event)} size="max-w-3xl">
+        {entry && <FormSection title="Recorded financial entry"><dl className="grid gap-3 text-sm sm:grid-cols-2">{[["Entry", entry.id], ["Date", entry.paid_on || entry.created_at], ["Amount", money.format(entry.amount)], ["Method", entry.method], ["Reference", entry.reference || "No reference"], ["Recorded by", entry.recorded_by]].map(([label, value]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="font-medium">{value ?? "—"}</dd></div>)}</dl>{!can("invoices.view") && <p className="mt-3 text-xs text-muted-foreground">Full invoice details require separate invoice access.</p>}</FormSection>}
         {formError && <div role="alert" className="form-alert mb-4">{formError}</div>}
         {busy && <p role="status" className="mb-4 text-sm">Loading finance details...</p>}
         {!readOnly && <FormProvider {...methods}><form noValidate onSubmit={(event) => handleSubmit(save)(event)}><fieldset disabled={busy} className="m-0 min-w-0 space-y-5 border-0 p-0">
@@ -114,7 +118,7 @@ export default function FinancePage({ mode }) {
         {invoice && <div className="mt-5 space-y-5">
           {snapshot && <FormSection title="Historical rental details"><p className="font-semibold">{snapshot.rental.rental_snapshot.customer.name} · {snapshot.rental.rental_snapshot.vehicle.number}</p><p className="mt-1 text-sm">BKG-{String(invoice.booking_id).padStart(6, "0")} · RNT-{String(invoice.rental_id).padStart(6, "0")} · Issued {invoice.issued_on}</p><p className="mt-1 text-sm">Handed over by {snapshot.rental.handover_staff_name}; received by {snapshot.return.receiving_staff_name}.</p><p className="mt-1 text-sm">Package: {snapshot.pricing.package_name}; agreed rate {money.format(snapshot.pricing.agreed_rate)} / {snapshot.pricing.billing_unit}.</p></FormSection>}
           <FormSection title="Current invoice and deposit settlement"><InvoiceSummary invoice={invoice} /></FormSection>
-          {mode === "invoices" && <div className="flex flex-wrap gap-3"><button type="button" className="btn-primary" onClick={() => void outputInvoice("html")}>Print Invoice / Save as PDF</button><button type="button" className="btn-primary" onClick={() => void outputInvoice("pdf")}>Download Invoice PDF</button></div>}
+          {mode === "invoices" && <div className="flex flex-wrap gap-3"><PermissionGate permission={"invoices.print"}><button type="button" className="btn-primary" onClick={() => void outputInvoice("html")}>Print Invoice / Save as PDF</button></PermissionGate><PermissionGate permission={"invoices.download"}><button type="button" className="btn-primary" onClick={() => void outputInvoice("pdf")}>Download Invoice PDF</button></PermissionGate></div>}
           {mode === "invoices" && snapshot && <FormSection title="Issued charge breakdown"><dl className="space-y-2 text-sm">{[["Rental subtotal", snapshot.pricing.subtotal], ["Discount", invoice.discount], ["Extra kilometres", snapshot.settlement.extra_km_charge], ["Late charge", snapshot.settlement.late_charge], ["Fuel charge", snapshot.settlement.fuel_charge], ["Approved damage", snapshot.settlement.damage_charge], ["Tax", invoice.tax], ["Invoice total", invoice.total]].map(([label, amount]) => <div key={label} className="flex justify-between gap-4"><dt>{label}</dt><dd>{money.format(amount)}</dd></div>)}</dl></FormSection>}
           {mode === "invoices" && <FormSection title="Receipt and deposit history">{[...invoice.booking_payments.map((r) => ({ ...r, kind: "Original booking advance" })), ...invoice.payments.map((r) => ({ ...r, kind: "Additional invoice receipt" })), ...invoice.deposits.map((r) => ({ ...r, kind: `Deposit ${r.entry_type}` }))].map((r, index) => <p key={index} className="mb-2 text-sm">{r.kind}: {money.format(r.amount)} · {r.method || "Settlement"} · {r.reference || "No reference"}</p>)}</FormSection>}
         </div>}

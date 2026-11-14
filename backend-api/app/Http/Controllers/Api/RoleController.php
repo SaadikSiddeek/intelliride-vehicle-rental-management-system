@@ -106,7 +106,7 @@ class RoleController extends Controller
                 $message = 'Role updated successfully.';
                 $responseCode = 200;
             } else {
-                $data['branch_id'] = 1;
+                $data['branch_id'] = app(\App\Services\PermissionService::class)->enabled() ? $request->user()->branch_id : 1;
                 $data['created_at'] = now();
 
                 $roleId = DB::table('roles_tb')

@@ -1,3 +1,4 @@
+import { firstAllowedPage } from "@/lib/permissions";
 import { Navigate, Outlet, Link } from "react-router-dom";
 import { useStateContext } from "../contexts/ContextProvider";
 import { ArrowLeft, Check } from "lucide-react";
@@ -6,7 +7,7 @@ import ThemeToggle from "./layout/ThemeToggle";
 import DrivingScene from "./marketing/DrivingScene";
 
 export default function GuestLayout() {
-  const { token, authLoading } = useStateContext();
+  const { token, user, authLoading } = useStateContext();
 
   if (authLoading) {
     return (
@@ -18,7 +19,7 @@ export default function GuestLayout() {
   }
 
   if (token) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={firstAllowedPage(user)} replace />;
   }
 
   return (

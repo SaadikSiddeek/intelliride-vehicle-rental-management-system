@@ -1,3 +1,5 @@
+import usePermissions from "@/hooks/usePermissions";
+import PermissionGate from "@/components/PermissionGate";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { Plus, TriangleAlert } from "lucide-react";
@@ -241,6 +243,7 @@ function PricePreview({ control }) {
 }
 
 export default function RentalPackage() {
+  const { can } = usePermissions();
   const methods = useForm({ defaultValues: EMPTY_FORM });
   const {
     register,
@@ -423,7 +426,7 @@ export default function RentalPackage() {
           width: 85,
           hozAlign: "center",
           headerSort: false,
-          formatter: () => EDIT_BUTTON,
+          formatter: () => can("rental_packages.edit") ? (EDIT_BUTTON) : "",
           cellClick(event, cell) {
             if (event.target.closest("button")) void openForm(cell.getValue());
           },
@@ -441,7 +444,7 @@ export default function RentalPackage() {
       instance.destroy();
       table.current = null;
     };
-  }, [loadTable, openForm]);
+  }, [loadTable, openForm, can]);
 
   function changeDrawer(nextOpen) {
     if (formRequest.current) return;
@@ -569,7 +572,7 @@ export default function RentalPackage() {
           )}
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-            <button
+            <PermissionGate permission="rental_packages.create"><button
               type="button"
               className="btn-primary management-add"
               disabled={busy}
@@ -577,9 +580,9 @@ export default function RentalPackage() {
             >
               <Plus size={16} aria-hidden="true" className="mr-2" />
               Add Rental Package
-            </button>
+            </button></PermissionGate>
 
-            <CustomDrawer
+            <CustomDrawer canSubmit={can("rental_packages.create") && !editing || can("rental_packages.edit") && editing}
               open={open}
               setOpen={changeDrawer}
               saving={busy}

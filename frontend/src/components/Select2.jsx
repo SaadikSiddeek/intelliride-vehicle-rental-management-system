@@ -41,7 +41,7 @@ export default function Select2({ name, endpoint, placeholder = "Select...", rul
     onValueChange?.(option?.id ?? null);
   };
   return <div className={`ir-select2 ${error ? "ir-select2-invalid" : ""}`}>
-    <AsyncSelect key={endpoint} ref={node => field.ref(node)} inputId={name} instanceId={name} name={name} value={selectedOption} onChange={handleChange} onBlur={() => field.onBlur()} loadOptions={loadOptions} defaultOptions cacheOptions filterOption={null} getOptionValue={o => String(o.id)} getOptionLabel={o => o.text} placeholder={placeholder} isDisabled={disabled} isClearable={clearable} aria-invalid={!!error} aria-describedby={error || loadError ? `${name}-error` : undefined} loadingMessage={() => "Loading..."} noOptionsMessage={({ inputValue }) => loadError || (inputValue ? "No matching results." : "No options available.")} classNamePrefix="select2" unstyled />
+    <AsyncSelect key={`${endpoint}:${disabled ? 'disabled' : 'enabled'}`} ref={node => field.ref(node)} inputId={name} instanceId={name} name={name} value={selectedOption} onChange={handleChange} onBlur={() => field.onBlur()} loadOptions={loadOptions} defaultOptions={!disabled} cacheOptions filterOption={null} getOptionValue={o => String(o.id)} getOptionLabel={o => o.text} placeholder={placeholder} isDisabled={disabled} isClearable={clearable} aria-invalid={!!error} aria-describedby={error || loadError ? `${name}-error` : undefined} loadingMessage={() => "Loading..."} noOptionsMessage={({ inputValue }) => loadError || (inputValue ? "No matching results." : "No options available.")} classNamePrefix="select2" unstyled />
     {(error?.message || loadError) && <p id={`${name}-error`} role="alert" className="field-error">{error?.message || loadError}</p>}
   </div>;
 }

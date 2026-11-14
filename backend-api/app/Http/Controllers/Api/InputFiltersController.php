@@ -60,6 +60,14 @@ class InputFiltersController extends Controller
 
         $query = DB::table('roles_tb')
             ->select('ID', 'role_name');
+        $p = app(\App\Services\PermissionService::class);
+        if ($p->enabled()) {
+            $query->where('status', true);
+            if ($request->user()->user_type === 'admin') {
+                $allowed = $p->delegable($request->user());
+                $query->whereNotExists(fn ($q) => $q->selectRaw('1')->from('role_permission_tb as rp')->whereColumn('rp.role_id', 'roles_tb.ID')->whereNotIn('rp.permission_code', $allowed));
+            }
+        }
 
         // Apply your existing branch filter here if staff are branch-specific.
 

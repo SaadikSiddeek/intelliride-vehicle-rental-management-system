@@ -1,6 +1,7 @@
 import { useStateContext } from "@/contexts/ContextProvider";
 import { NavLink } from "react-router-dom";
 import { PanelLeftClose, PanelLeftOpen, X, LogOut } from "lucide-react";
+import { canVisit } from "@/lib/permissions";
 import { navigation } from "./layout/navigation";
 import Brand from "./layout/Brand";
 import {
@@ -40,14 +41,14 @@ export default function Sidebar({
         )}
       </div>
       <nav className="sidebar-nav" aria-label="Main navigation">
-        {navigation.map((group) => (
+        {navigation.filter(group => group.items.some(item => canVisit(user, item.to))).map((group) => (
           <div key={group.label} className="nav-group">
             {expanded ? (
               <p className="nav-group-label">{group.label}</p>
             ) : (
               <div className="nav-divider" />
             )}
-            {group.items.filter(item => (!item.adminOnly || user?.can_manage_business) && (!item.permission || user?.permissions?.[item.permission])).map(({ label, to, icon: Icon }) => (
+            {group.items.filter(item => canVisit(user, item.to)).map(({ label, to, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}

@@ -1,3 +1,4 @@
+import PermissionGate from "@/components/PermissionGate";
 import useRecordLink from "@/hooks/useRecordLink";
 import { tableAction } from "@/lib/table-actions";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -363,7 +364,7 @@ export default function ActiveRental() {
               {success}
             </div>
           )}
-          <button
+          <PermissionGate permission="rentals.handover"><button
             type="button"
             className="btn-primary management-add mb-6"
             disabled={busy}
@@ -371,7 +372,7 @@ export default function ActiveRental() {
           >
             <Plus size={16} className="mr-2" />
             New Handover
-          </button>
+          </button></PermissionGate>
           <CustomDrawer
             open={open}
             setOpen={(next) => {

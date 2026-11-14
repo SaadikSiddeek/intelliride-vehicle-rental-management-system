@@ -1,5 +1,7 @@
+import { canVisit } from "@/lib/permissions";
+import { ShieldCheck } from "lucide-react";
 import { useState } from "react";
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useStateContext } from "../contexts/ContextProvider";
 import axiosClient from "../axios-client";
 import Sidebar from "./Sidebar";
@@ -7,9 +9,11 @@ import Header from "../components/Header";
 import { useTheme } from "../contexts/theme-context";
 import Brand from "./layout/Brand";
 import ApiFailureBanner from "./ApiFailureBanner";
+import InitialPasswordChange from "./InitialPasswordChange";
 import FloatingCalculator from "./calculator/FloatingCalculator";
 
 export default function DefaultLayout() {
+  const { pathname } = useLocation();
   const { user, token, setToken, authLoading } = useStateContext();
 
   const { preferences, setPreference } = useTheme();
@@ -56,6 +60,8 @@ export default function DefaultLayout() {
     return <Navigate to="/login" replace />;
   }
 
+  if (user?.must_change_password) return <InitialPasswordChange onLogout={onLogout} />;
+
   return (
     <div className="app-shell">
       <a href="#main-content" className="skip-link">
@@ -76,7 +82,7 @@ export default function DefaultLayout() {
 
         <main id="main-content" className="workspace-content">
           <ApiFailureBanner />
-          <Outlet />
+          {canVisit(user, pathname) ? <Outlet key={JSON.stringify([user?.authorization_mode, user?.effective_permissions])} /> : <section className="rounded-xl border border-border bg-card p-8 text-center" role="alert"><ShieldCheck className="mx-auto mb-4 text-muted-foreground" /><h1 className="text-xl font-semibold">Access denied</h1><p className="mt-2 text-muted-foreground">Your account has not been assigned access to this page. Contact your administrator.</p></section>}
         </main>
       </div>
     </div>

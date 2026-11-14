@@ -28,6 +28,9 @@ class BookingService
 
     public function canOverride($user): bool
     {
+        if (app(PermissionService::class)->enabled()) {
+            return app(PermissionService::class)->can($user, 'bookings.pricing_override');
+        }
         return in_array((string) $user->getAuthIdentifier(), config('rental.pricing_user_ids', []), true);
     }
 

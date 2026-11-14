@@ -24,26 +24,41 @@ class AccessService
 
     public function operations(?User $user): bool
     {
+        if (app(PermissionService::class)->enabled()) {
+            return (bool) app(PermissionService::class)->effective($user);
+        }
         return $this->assigned($user, config('access.operations_users') ?? config('customer_access.users', [])) || $this->role($user, config('access.operations_roles', []));
     }
 
     public function customers(?User $user): bool
     {
+        if (app(PermissionService::class)->enabled()) {
+            return (bool) app(PermissionService::class)->effective($user);
+        }
         return $this->assigned($user, config('customer_access.users', [])) || $this->role($user, config('access.customer_roles', []));
     }
 
     public function administration(?User $user): bool
     {
+        if (app(PermissionService::class)->enabled()) {
+            return in_array($user?->user_type, ['super_admin', 'admin'], true) && app(PermissionService::class)->any($user, PermissionCatalog::MANAGEMENT);
+        }
         return $this->assigned($user, config('access.administration_users') ?? config('customer_access.users', [])) && $this->role($user, config('access.administrator_roles', ['Admin']));
     }
 
     public function company(?User $user): bool
     {
+        if (app(PermissionService::class)->enabled()) {
+            return app(PermissionService::class)->any($user, ['company_settings.view', 'company_settings.update']);
+        }
         return $this->assigned($user, config('access.company_users') ?? config('access.administration_users') ?? config('customer_access.users', [])) && $this->role($user, config('access.administrator_roles', ['Admin']));
     }
 
     public function identity(?User $user): bool
     {
+        if (app(PermissionService::class)->enabled()) {
+            return app(PermissionService::class)->can($user, 'reports.identity.view');
+        }
         return $this->operations($user) && $this->assigned($user, config('rental.identity_report_user_ids', []));
     }
 

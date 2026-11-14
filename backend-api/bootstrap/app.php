@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
+            'permissions' => \App\Http\Middleware\EnforcePermissions::class,
             'active.account' => \App\Http\Middleware\RequireActiveAccount::class,
             'administration' => \App\Http\Middleware\RequireAdministration::class,
         ]);

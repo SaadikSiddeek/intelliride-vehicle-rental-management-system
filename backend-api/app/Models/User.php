@@ -26,7 +26,17 @@ use Laravel\Sanctum\HasApiTokens;
 ])]
 class User extends Authenticatable
 {
-    protected $appends = ['can_manage_business', 'display_name', 'has_profile_photo', 'permissions'];
+    protected $appends = ['can_manage_business', 'display_name', 'has_profile_photo', 'permissions', 'authorization_mode', 'effective_permissions'];
+
+    public function getAuthorizationModeAttribute(): string
+    {
+        return app(\App\Services\PermissionService::class)->enabled() ? 'rbac' : 'legacy';
+    }
+
+    public function getEffectivePermissionsAttribute(): array
+    {
+        return app(\App\Services\PermissionService::class)->effective($this);
+    }
 
     public function getCanManageBusinessAttribute(): bool
     {
@@ -70,6 +80,7 @@ class User extends Authenticatable
     {
         return [
             'status' => 'boolean',
+            'must_change_password' => 'boolean',
             'password' => 'hashed',
         ];
     }
