@@ -7,6 +7,7 @@ import { TabulatorFull as Tabulator } from "tabulator-tables";
 
 import axiosClient from "@/axios-client";
 import TableSearch from "@/components/TableSearch";
+import { matchesTableRecord } from "@/lib/table-filter.mjs";
 import PageHeader from "@/components/PageHeader";
 import CarLoader from "@/components/CarLoader";
 import CustomDrawer from "@/components/Drawer";
@@ -20,6 +21,7 @@ const DEFAULT_VALUES = {
 };
 
 export default function Designation() {
+  const recordFilters = useRef({ status: "active", query: "" });
   const { can } = usePermissions();
   const [openDrawer, setOpenDrawer] = useState(false);
   const [updateId, setUpdateId] = useState("");
@@ -230,6 +232,7 @@ export default function Designation() {
 
   useEffect(() => {
     const designationTable = new Tabulator(tableRef.current, {
+      initialFilter: [{ field: matchesTableRecord, type: recordFilters.current }],
       index: "ID",
       layout: "fitColumns",
       responsiveLayout: "collapse",
@@ -425,7 +428,7 @@ export default function Designation() {
                 </div>
 
                 <div id="designation-tb" className="p-6">
-                  <TableSearch table={table} />
+                  <TableSearch table={table} filters={recordFilters} />
 
                   <div
                     ref={tableRef}

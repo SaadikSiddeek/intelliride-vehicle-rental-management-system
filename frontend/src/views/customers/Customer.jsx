@@ -298,7 +298,7 @@ export default function Customer() {
   const tableRef = useRef(null);
   const table = useRef(null);
   const listRequest = useRef(null);
-  const listFilters = useRef({ status: "", customer_type: "" });
+  const listFilters = useRef({ status: "Active", customer_type: "" });
   const formRequest = useRef(null);
 
   const busy = formLoading || saving;
@@ -840,7 +840,7 @@ export default function Customer() {
                 >
                   <div className="mb-4 flex flex-wrap gap-3">
                     {[['status', 'Customer status', ['Active', 'Inactive', 'Blocked']], ['customer_type', 'Customer type', ['Local', 'Tourist']]].map(([name, label, options]) => (
-                      <select key={name} aria-label={label} className="custom-input-sm" defaultValue="" onChange={(event) => {
+                      <select key={name} aria-label={label} className="custom-input-sm" defaultValue={name === "status" ? "Active" : ""} onChange={(event) => {
                         listFilters.current[name] = event.target.value;
                         void getCustomers();
                       }}>

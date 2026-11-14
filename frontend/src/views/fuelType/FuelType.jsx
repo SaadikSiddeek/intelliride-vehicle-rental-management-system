@@ -6,6 +6,7 @@ import { Plus, TriangleAlert } from "lucide-react";
 import { TabulatorFull as Tabulator } from "tabulator-tables";
 
 import TableSearch from "@/components/TableSearch";
+import { matchesTableRecord } from "@/lib/table-filter.mjs";
 import FieldError from "@/components/ErrorField";
 import { Input, Textarea } from "@/components/ui/input";
 import PageHeader from "@/components/PageHeader";
@@ -26,6 +27,7 @@ function getErrorMessage(error, fallback) {
 }
 
 export default function FuelType() {
+  const recordFilters = useRef({ status: "active", query: "" });
   const { can } = usePermissions();
   // ================= STATE =================
 
@@ -298,6 +300,7 @@ export default function FuelType() {
 
   useEffect(() => {
     const fuelTable = new Tabulator(tableRef.current, {
+      initialFilter: [{ field: matchesTableRecord, type: recordFilters.current }],
       index: "id",
       layout: "fitColumns",
       maxHeight: "550px",
@@ -620,7 +623,7 @@ export default function FuelType() {
                   className="relative p-6"
                   aria-busy={tableLoading}
                 >
-                  <TableSearch table={table} />
+                  <TableSearch table={table} filters={recordFilters} />
 
                   <div
                     ref={tableRef}

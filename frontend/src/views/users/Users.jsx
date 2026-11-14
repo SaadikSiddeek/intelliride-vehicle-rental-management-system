@@ -7,6 +7,7 @@ import { TabulatorFull as Tabulator } from "tabulator-tables";
 
 import FieldError from "@/components/ErrorField";
 import TableSearch from "@/components/TableSearch";
+import { matchesTableRecord } from "@/lib/table-filter.mjs";
 import FormSection from "@/components/forms/FormSection";
 import { Input, NativeSelect } from "@/components/ui/input";
 import PageHeader from "@/components/PageHeader";
@@ -31,6 +32,7 @@ const DEFAULT_VALUES = {
 };
 
 export default function Users() {
+  const recordFilters = useRef({ status: "active", query: "" });
   const { isRbac, isSuperAdmin, can } = usePermissions();
   // ================= PAGE STATE =================
 
@@ -284,6 +286,7 @@ export default function Users() {
 
   useEffect(() => {
     const userTable = new Tabulator(tableRef.current, {
+      initialFilter: [{ field: matchesTableRecord, type: recordFilters.current }],
       index: "ID",
       layout: "fitColumns",
       responsiveLayout: "collapse",
@@ -759,7 +762,7 @@ export default function Users() {
                 </div>
 
                 <div id="user-tb" className="p-6">
-                  <TableSearch table={table} />
+                  <TableSearch table={table} filters={recordFilters} />
 
                   <div
                     ref={tableRef}

@@ -6,6 +6,7 @@ import { Plus, TriangleAlert, ImagePlus, Trash2, Undo2 } from "lucide-react";
 import { TabulatorFull as Tabulator } from "tabulator-tables";
 
 import TableSearch from "@/components/TableSearch";
+import { matchesTableRecord } from "@/lib/table-filter.mjs";
 import FieldError from "@/components/ErrorField";
 import { Input } from "@/components/ui/input";
 import PageHeader from "@/components/PageHeader";
@@ -30,6 +31,7 @@ function errorMessage(error, fallback) {
 }
 
 export default function VehicleBrand() {
+  const recordFilters = useRef({ status: "active", query: "" });
   const { can } = usePermissions();
   const [openDrawer, setOpenDrawer] = useState(false);
   const [updateId, setUpdateId] = useState("");
@@ -395,6 +397,7 @@ export default function VehicleBrand() {
 
   useEffect(() => {
     const brandTable = new Tabulator(tableRef.current, {
+      initialFilter: [{ field: matchesTableRecord, type: recordFilters.current }],
       index: "id",
       layout: "fitColumns",
       maxHeight: "550px",
@@ -839,7 +842,7 @@ export default function VehicleBrand() {
                   className="relative p-6"
                   aria-busy={tableLoading}
                 >
-                  <TableSearch table={table} />
+                  <TableSearch table={table} filters={recordFilters} />
 
                   <div
                     ref={tableRef}

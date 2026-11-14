@@ -271,7 +271,7 @@ export default function RentalPackage() {
   const tableElement = useRef(null);
   const table = useRef(null);
   const listRequest = useRef(null);
-  const listFilters = useRef({ status: "", billing_unit: "" });
+  const listFilters = useRef({ status: "1", billing_unit: "" });
   const formRequest = useRef(null);
 
   const editing = editId !== null;
@@ -835,7 +835,7 @@ export default function RentalPackage() {
                 >
                   <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {[['status', 'Package status', [['1', 'Active'], ['0', 'Inactive']]], ['billing_unit', 'Billing unit', Object.entries(UNIT_LABELS)]].map(([name, label, options]) => (
-                      <select key={name} aria-label={label} className="custom-input-sm" defaultValue="" onChange={(event) => {
+                      <select key={name} aria-label={label} className="custom-input-sm" defaultValue={name === "status" ? "1" : ""} onChange={(event) => {
                         listFilters.current[name] = event.target.value;
                         void loadTable();
                       }}>

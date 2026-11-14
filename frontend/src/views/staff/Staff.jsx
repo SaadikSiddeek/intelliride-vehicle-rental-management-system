@@ -7,6 +7,7 @@ import { TabulatorFull as Tabulator } from "tabulator-tables";
 
 import FieldError from "@/components/ErrorField";
 import TableSearch from "@/components/TableSearch";
+import { matchesTableRecord } from "@/lib/table-filter.mjs";
 import FormSection from "@/components/forms/FormSection";
 import { Input, Textarea } from "@/components/ui/input";
 import PageHeader from "@/components/PageHeader";
@@ -70,6 +71,7 @@ const PERSONAL_FIELDS = [
 ];
 
 export default function Staff() {
+  const recordFilters = useRef({ status: "active", query: "" });
   const { can } = usePermissions();
   // ================= STATE =================
 
@@ -299,6 +301,7 @@ export default function Staff() {
 
   useEffect(() => {
     const staffTable = new Tabulator(tableRef.current, {
+      initialFilter: [{ field: matchesTableRecord, type: recordFilters.current }],
       index: "id",
       layout: "fitColumns",
       maxHeight: "550px",
@@ -720,7 +723,7 @@ export default function Staff() {
                 </div>
 
                 <div id="staff-tb" className="p-6">
-                  <TableSearch table={table} />
+                  <TableSearch table={table} filters={recordFilters} />
 
                   <div
                     ref={tableRef}
