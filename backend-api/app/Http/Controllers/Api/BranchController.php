@@ -27,7 +27,7 @@ class BranchController extends Controller
                     $existingBranch = DB::table('branch_tb')
                         ->where('ID', $request->input('upd_id'))
                         ->lockForUpdate()
-                        ->first(['ID']);
+                        ->first(['ID', 'manager_id', 'manager_name']);
 
                     if (!$existingBranch) {
                         return $this->branchNotFound();
@@ -45,6 +45,7 @@ class BranchController extends Controller
                     'branch_code' => ['required', 'string', 'max:50', $branchCodeRule],
                     'address' => ['nullable', 'string', 'max:5000'],
                     'contact_number' => ['nullable', 'string', 'max:20'],
+                    'manager_name' => ['nullable', 'string', 'max:200'],
                     'manager_id' => [
                         'nullable',
                         'integer',
@@ -64,10 +65,18 @@ class BranchController extends Controller
                     'branch_code' => $validated['branch_code'],
                     'address' => $validated['address'] ?? null,
                     'contact_number' => $validated['contact_number'] ?? null,
-                    'manager_id' => $validated['manager_id'] ?? null,
+                    'manager_name' => $request->has('manager_name') ? ($validated['manager_name'] ?? null) : ($existingBranch?->manager_name),
                     'status' => (int) $validated['status'],
                     'updated_at' => now(),
                 ];
+
+                // The new form sends a display name only; retain any historical staff link.
+                // Old API clients may still submit only manager_id during coordinated rollout.
+                if (! $request->has('manager_name') && $request->has('manager_id')) {
+                    $data['manager_id'] = $validated['manager_id'] ?? null;
+                    $staff = $data['manager_id'] ? DB::table('staff_tb')->where('ID', $data['manager_id'])->first(['first_name', 'last_name']) : null;
+                    $data['manager_name'] = $staff ? mb_substr(trim($staff->first_name.' '.$staff->last_name), 0, 200) : null;
+                }
 
                 if ($existingBranch) {
                     $branchId = $existingBranch->ID;
@@ -121,38 +130,19 @@ class BranchController extends Controller
     public function getBranches()
     {
         try {
-            $branches = DB::table('branch_tb as b')
-                ->leftJoin('staff_tb as s', 's.ID', '=', 'b.manager_id')
-                ->select([
-                    'b.ID as id',
-                    'b.branch_name',
-                    'b.branch_code',
-                    'b.address',
-                    'b.contact_number',
-                    'b.manager_id',
-                    'b.status',
-                ])
-                ->selectRaw(
-                    "TRIM(CONCAT_WS(' ', s.first_name, s.last_name)) AS manager"
-                )
-                ->orderByDesc('b.ID')
-                ->get();
-
-            // Option value = staff ID. Option label = staff full name.
-            $managers = DB::table('staff_tb')
-                ->select('ID as id')
-                ->selectRaw(
-                    "TRIM(CONCAT_WS(' ', first_name, last_name)) AS name"
-                )
-                ->orderBy('first_name')
-                ->orderBy('last_name')
-                ->orderBy('ID')
-                ->get();
+            $branches = DB::table('branch_tb')->select([
+                'ID as id', 'branch_name', 'branch_code', 'address', 'contact_number',
+                'manager_id', 'manager_name', 'status',
+            ])->orderByDesc('ID')->get();
+            // Preserve the previous listing alias without loading the staff directory.
+            foreach ($branches as $branch) {
+                $branch->manager = $branch->manager_name ?? '';
+            }
 
             return response()->json([
                 'status' => true,
                 'data' => $branches,
-                'managers' => $managers,
+                'managers' => [],
                 'message' => 'Branches retrieved successfully.',
             ]);
         } catch (\Throwable $e) {
@@ -178,6 +168,7 @@ class BranchController extends Controller
                     'address',
                     'contact_number',
                     'manager_id',
+                    'manager_name',
                     'status',
                 ]);
 

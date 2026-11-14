@@ -13,18 +13,16 @@ import PageHeader from "@/components/PageHeader";
 import CarLoader from "@/components/CarLoader";
 import CustomDrawer from "@/components/Drawer";
 import axiosClient from "@/axios-client";
-import Select2 from "../../components/Select2";
 
 import "tabulator-tables/dist/css/tabulator.min.css";
 
-const DEFAULT_MANAGER_ID = "1";
 
 const EMPTY_FORM = {
   branch_name: "",
   branch_code: "",
   address: "",
   contact_number: "",
-  manager_id: "",
+  manager_name: "",
   status: true,
 };
 
@@ -44,7 +42,6 @@ export default function Branch() {
   // ================= STATE =================
   const [openDrawer, setOpenDrawer] = useState(false);
   const [updateId, setUpdateId] = useState("");
-  const [managers, setManagers] = useState([]);
 
   const [tableLoading, setTableLoading] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
@@ -88,11 +85,10 @@ export default function Branch() {
         throw new Error(data.message || "Unable to load branches.");
       }
 
-      if (!Array.isArray(data.data) || !Array.isArray(data.managers)) {
+      if (!Array.isArray(data.data)) {
         throw new Error("Invalid branch or manager data received.");
       }
 
-      setManagers(data.managers);
       await table.current?.setData(data.data);
     } catch (error) {
       setPageError(
@@ -109,14 +105,7 @@ export default function Branch() {
   const openCreateDrawer = () => {
     if (requestBusy.current) return;
 
-    const hasDefaultManager = managers.some(
-      (person) => String(person.id) === DEFAULT_MANAGER_ID,
-    );
-
-    reset({
-      ...EMPTY_FORM,
-      manager_id: hasDefaultManager ? DEFAULT_MANAGER_ID : "",
-    });
+    reset(EMPTY_FORM);
     setUpdateId("");
     setFormError("");
     setSuccessMessage("");
@@ -158,7 +147,7 @@ export default function Branch() {
             branch_code: branch.branch_code ?? "",
             address: branch.address ?? "",
             contact_number: branch.contact_number ?? "",
-            manager_id: String(branch.manager_id ?? ""),
+            manager_name: branch.manager_name ?? "",
             status: Number(branch.status) === 1,
           },
           { keepDefaultValues: true },
@@ -196,7 +185,7 @@ export default function Branch() {
       branch_code: formData.branch_code.trim(),
       address: formData.address.trim() || null,
       contact_number: formData.contact_number.trim() || null,
-      manager_id: formData.manager_id || null,
+      manager_name: formData.manager_name.trim() || null,
       status: formData.status ? 1 : 0,
     };
 
@@ -307,8 +296,8 @@ export default function Branch() {
           width: 155,
         },
         {
-          title: "Manager",
-          field: "manager",
+          title: "Manager Name",
+          field: "manager_name",
           formatter: "plaintext",
           minWidth: 160,
         },
@@ -525,26 +514,27 @@ export default function Branch() {
 
                     <FormSection
                       title="Branch assignment"
-                      description="Manager assignment, contact number and status."
+                      description="Optional manager name, contact number and status."
                     >
                       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                         <div>
                           <label
-                            htmlFor="manager_id"
+                            htmlFor="manager_name"
                             className="mb-2 block text-sm font-semibold"
                           >
-                            Manager
+                            Manager Name
                           </label>
 
-                          <Select2
-                            name="manager_id"
-                            endpoint="/staff_filter"
-                            placeholder="Select Manager..."
+                          <Input
+                            id="manager_name"
+                            placeholder="Enter manager name (optional)"
+                            maxLength={200}
                             disabled={isBusy}
-                            rules={{ required: "Please select a manager." }}
+                            aria-invalid={!!errors.manager_name}
+                            {...register("manager_name", { maxLength: { value: 200, message: "Manager name must not exceed 200 characters." } })}
                           />
 
-                          <FieldError errors={errors} name="manager_id" />
+                          <FieldError errors={errors} name="manager_name" />
                         </div>
 
                         <div>
