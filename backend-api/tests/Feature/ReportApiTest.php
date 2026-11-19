@@ -127,3 +127,33 @@ test('report search and overdue filtering apply equally to displayed and exporte
     DB::table('rental_tb')->where('ID', 1)->update(['status' => 'Active']);
     $this->postJson('/api/get_report', reportPayload(['overdue_only' => true]))->assertOk()->assertJsonCount(1, 'data');
 });
+
+
+test('receiver text and official references survive report search and export', function () {
+    $result = $this->postJson('/api/get_report', reportPayload(['q' => 'Test Employee']))
+        ->assertOk()->assertJsonPath('data.0.Received By', 'Test Employee')
+        ->assertJsonPath('data.0.Invoice', 'INV-000001')->json();
+    expect($result['numeric_columns'])->not->toContain('Received By')->toContain('Invoice Total');
+    $csv = $this->postJson('/api/export_report', reportPayload(['format' => 'csv', 'q' => 'Test Employee']))->assertOk();
+    expect($csv->getContent())->toContain('Test Employee', 'INV-000001');
+    $this->postJson('/api/export_report', reportPayload(['format' => 'html']))->assertOk()->assertSee('Test Employee');
+    DB::table('rental_return_tb')->where('rental_id', 1)->update(['receiving_staff_name' => '']);
+    $this->postJson('/api/get_report', reportPayload())->assertOk()->assertJsonPath('data.0.Received By', 'Not recorded');
+});
+
+test('payment and return audit displays resolve the staff account without replacing identifiers', function () {
+    $this->postJson('/api/save_invoice_payment', ['invoice_id' => 1, 'request_id' => (string) Str::uuid(), 'amount' => '1000.00', 'method' => 'cash', 'paid_on' => '2026-12-02', 'approved' => true])->assertOk();
+    $this->postJson('/api/get_payments', ['method' => 'cash', 'from' => '2026-12-02'])->assertOk()
+        ->assertJsonPath('data.0.invoice_id', 1)->assertJsonPath('data.0.invoice_number', 'INV-000001')
+        ->assertJsonPath('data.0.booking_number', 'BKG-000001')
+        ->assertJsonPath('data.0.recorded_by', 701)->assertJsonPath('data.0.recorded_by_name', 'Test Employee');
+    $this->postJson('/api/fetch_return_data', ['upd_id' => 1])->assertOk()
+        ->assertJsonPath('data.audit.0.recorded_by_name', 'Test Employee')->assertJsonPath('data.rental_number', 'RNT-000001');
+    $this->postJson('/api/get_staff')->assertOk()->assertJsonPath('data.0.branch', 1)
+        ->assertJsonPath('data.0.branch_name', 'Test')->assertJsonPath('data.0.department_name', 'Test')
+        ->assertJsonPath('data.0.designation_name', 'Test');
+    $this->postJson('/api/customer_filter', ['q' => 'CUS-000001'])->assertOk()
+        ->assertJsonPath('data.0.id', 1)->assertJsonPath('data.0.text', 'Test Customer — CUS-000001');
+    $this->postJson('/api/get_report', reportPayload(['type' => 'deposit_history']))->assertOk()
+        ->assertJsonPath('data.0.Recorded By', 'Test Employee');
+});

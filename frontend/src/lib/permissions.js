@@ -19,6 +19,9 @@ export function hasPermission(user, code) {
 
 export function canVisit(user, path) {
   const pathname = path.split("?")[0];
+  // These existing availability screens send no messages and expose no business data.
+  // Restore their historical authenticated visibility, without granting AI/API actions.
+  if (["/ai/agent", "/ai/chatbot"].includes(pathname)) return Boolean(user) && user.status !== false && user.status !== 0;
   if (user?.authorization_mode !== "rbac") {
     return !pagePermissions[pathname] || hasPermission(user, pagePermissions[pathname]);
   }

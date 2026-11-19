@@ -11,6 +11,8 @@ class ReportService
 
     public const NUMBERS = ['Recognized Revenue', 'Duration Hours', 'Starting Km', 'Ending Km', 'Distance Km', 'Invoice Total', 'Amount Paid', 'Balance', 'Subtotal', 'Tax', 'Discount', 'Additional Charges', 'Rental Cash Received', 'Deposit Received', 'Deposit Applied', 'Deposit Refunded', 'Deposit Held', 'Trips Completed', 'Rental Days', 'Active Rentals', 'Maintenance Days', 'Unclassified Days', 'Rentals Started'];
 
+    public const MONEY_COLUMNS = ['Recognized Revenue', 'Invoice Total', 'Amount Paid', 'Balance', 'Subtotal', 'Tax', 'Discount', 'Additional Charges', 'Rental Cash Received', 'Deposit Received', 'Deposit Applied', 'Deposit Refunded', 'Deposit Held'];
+
     public function columns(string $type, bool $identity = false): array
     {
         $base = ['Rental', 'Booking', 'Customer', 'Vehicle Name', 'Vehicle', 'Pickup Branch', 'Return Branch', 'Pickup', 'Return', 'Duration Hours', 'Starting Km', 'Ending Km', 'Status', 'Handed Over By', 'Received By', 'Invoice', 'Invoice Total', 'Amount Paid', 'Balance'];
@@ -24,8 +26,8 @@ class ReportService
             'outstanding_invoices' => ['Invoice', 'Issued', 'Customer', 'Vehicle', 'Invoice Total', 'Amount Paid', 'Balance'],
             'booking_history','cancellations' => ['Booking', 'Customer', 'Vehicle', 'Branch', 'Pickup', 'Expected Return', 'Status', 'Payment Status', 'Invoice Total'],
             'monthly_rentals','yearly_rentals' => ['Period', 'Rentals Started', 'Trips Completed', 'Invoice Total'],
-            'maintenance_history' => ['Maintenance', 'Vehicle', 'Branch', 'Service', 'Starts', 'Expected End', 'Completed', 'Status', 'Recorded By', 'Notes'],
-            'document_expiry' => ['Document', 'Vehicle', 'Branch', 'Type', 'Number', 'Issued', 'Expires', 'Status'],
+            'maintenance_history' => [ 'Vehicle', 'Branch', 'Service', 'Starts', 'Expected End', 'Completed', 'Status', 'Recorded By', 'Notes'],
+            'document_expiry' => [ 'Vehicle', 'Branch', 'Type', 'Number', 'Issued', 'Expires', 'Status'],
             'deposit_history' => ['Date', 'Rental', 'Invoice', 'Customer', 'Vehicle', 'Branch', 'Entry', 'Deposit Received', 'Deposit Applied', 'Deposit Refunded', 'Method', 'Reference', 'Recorded By', 'Reason'],default => []
         };
     }
@@ -103,7 +105,7 @@ class ReportService
                 if ($balance <= 0) {
                     continue;
                 }$s = json_decode($i->snapshot, true)['rental']['rental_snapshot'];
-                yield ['Invoice' => 'INV-'.str_pad($i->ID, 6, '0', STR_PAD_LEFT), 'Issued' => $i->issued_on, 'Customer' => $s['customer']['name'], 'Vehicle' => $s['vehicle']['number'], 'Invoice Total' => $this->money($i->total), 'Amount Paid' => $paid / 100, 'Balance' => $balance / 100];
+                yield ['Invoice' => \App\Services\CodeGenerator::reference('invoice', $i->ID), 'Issued' => $i->issued_on, 'Customer' => $s['customer']['name'], 'Vehicle' => $s['vehicle']['number'], 'Invoice Total' => $this->money($i->total), 'Amount Paid' => $paid / 100, 'Balance' => $balance / 100];
             }
 
             return;
@@ -118,7 +120,7 @@ class ReportService
                 $q->where('b.status', $f['status']);
             }
             foreach ($q->orderBy('b.ID')->select(['b.*', 'c.full_name', 'v.vehicle_number', 'br.branch_name'])->lazy(200) as $b) {
-                yield ['Booking' => 'BKG-'.str_pad($b->ID, 6, '0', STR_PAD_LEFT), 'Customer' => $b->full_name, 'Vehicle' => $b->vehicle_number, 'Branch' => $b->branch_name, 'Pickup' => $b->pickup_at, 'Expected Return' => $b->expected_return_at, 'Status' => $b->status, 'Payment Status' => $b->payment_status, 'Invoice Total' => $this->money($b->total)];
+                yield ['Booking' => \App\Services\CodeGenerator::reference('booking', $b->ID), 'Customer' => $b->full_name, 'Vehicle' => $b->vehicle_number, 'Branch' => $b->branch_name, 'Pickup' => $b->pickup_at, 'Expected Return' => $b->expected_return_at, 'Status' => $b->status, 'Payment Status' => $b->payment_status, 'Invoice Total' => $this->money($b->total)];
             }
 
             return;
@@ -131,7 +133,7 @@ class ReportService
                 $q->where('m.status', $f['status']);
             }
             foreach ($q->orderBy('m.ID')->select(['m.*', 'v.vehicle_number', 'br.branch_name', 'u.username'])->lazy(200) as $m) {
-                yield ['Maintenance' => $m->ID, 'Vehicle' => $m->vehicle_number, 'Branch' => $m->branch_name, 'Service' => $m->service_type, 'Starts' => $m->starts_at, 'Expected End' => $m->ends_at, 'Completed' => $m->completed_at, 'Status' => $m->status, 'Recorded By' => $m->username, 'Notes' => $m->notes];
+                yield ['Vehicle' => $m->vehicle_number, 'Branch' => $m->branch_name, 'Service' => $m->service_type, 'Starts' => $m->starts_at, 'Expected End' => $m->ends_at, 'Completed' => $m->completed_at, 'Status' => $m->status, 'Recorded By' => $m->username, 'Notes' => $m->notes];
             }
 
             return;
@@ -151,7 +153,7 @@ class ReportService
                 $q->where('d.expires_on', '>=', now(config('rental.timezone'))->toDateString());
             }
             foreach ($q->orderBy('d.expires_on')->orderBy('d.ID')->select(['d.*', 'v.vehicle_number', 'br.branch_name'])->lazy(200) as $d) {
-                yield ['Document' => $d->ID, 'Vehicle' => $d->vehicle_number, 'Branch' => $d->branch_name, 'Type' => $d->document_type, 'Number' => $d->document_number, 'Issued' => $d->issued_on, 'Expires' => $d->expires_on, 'Status' => $d->superseded_at ? 'Superseded' : ($d->expires_on < now(config('rental.timezone'))->toDateString() ? 'Expired' : 'Current')];
+                yield ['Vehicle' => $d->vehicle_number, 'Branch' => $d->branch_name, 'Type' => $d->document_type, 'Number' => $d->document_number, 'Issued' => $d->issued_on, 'Expires' => $d->expires_on, 'Status' => $d->superseded_at ? 'Superseded' : ($d->expires_on < now(config('rental.timezone'))->toDateString() ? 'Expired' : 'Current')];
             }
 
             return;
@@ -181,7 +183,7 @@ class ReportService
 
                 continue;
             }
-            $row = ['Rental' => 'RNT-'.str_pad($r->ID, 6, '0', STR_PAD_LEFT), 'Booking' => 'BKG-'.str_pad($r->booking_id, 6, '0', STR_PAD_LEFT), 'Customer' => $s['customer']['name'], 'Vehicle Name' => $s['vehicle']['name'] ?? 'Not recorded', 'Vehicle' => $s['vehicle']['number'], 'Pickup Branch' => $s['pickup_branch'], 'Return Branch' => $s['return_branch'], 'Pickup' => $r->actual_pickup_at, 'Return' => $r->actual_return_at, 'Duration Hours' => round($duration, 2), 'Starting Km' => $r->starting_odometer, 'Ending Km' => $r->ending_odometer, 'Status' => $r->status, 'Handed Over By' => $r->handover_staff_name, 'Received By' => $r->receiving_staff_name, 'Invoice' => $r->invoice_id ? 'INV-'.str_pad($r->invoice_id, 6, '0', STR_PAD_LEFT) : null, 'Invoice Total' => $this->money($r->invoice_total), 'Amount Paid' => $paid / 100, 'Balance' => max(0, BookingService::cents($r->invoice_total ?? '0') - $paid) / 100];
+            $row = ['Rental' => \App\Services\CodeGenerator::reference('rental', $r->ID), 'Booking' => \App\Services\CodeGenerator::reference('booking', $r->booking_id), 'Customer' => $s['customer']['name'], 'Vehicle Name' => $s['vehicle']['name'] ?? 'Not recorded', 'Vehicle' => $s['vehicle']['number'], 'Pickup Branch' => $s['pickup_branch'], 'Return Branch' => $s['return_branch'], 'Pickup' => $r->actual_pickup_at, 'Return' => $r->actual_return_at, 'Duration Hours' => round($duration, 2), 'Starting Km' => $r->starting_odometer, 'Ending Km' => $r->ending_odometer, 'Status' => $r->status, 'Handed Over By' => trim((string) $r->handover_staff_name) ?: 'Not recorded', 'Received By' => trim((string) $r->receiving_staff_name) ?: 'Not recorded', 'Invoice' => $r->invoice_id ? \App\Services\CodeGenerator::reference('invoice', $r->invoice_id) : null, 'Invoice Total' => $this->money($r->invoice_total), 'Amount Paid' => $paid / 100, 'Balance' => max(0, BookingService::cents($r->invoice_total ?? '0') - $paid) / 100];
             if (! empty($f['include_identity'])) {
                 $row['NIC / Passport'] = $s['customer']['document_number'];
             }yield $row;
@@ -199,7 +201,7 @@ class ReportService
         $this->entity($q, $f, ['customer_id' => 'r.customer_id', 'vehicle_id' => 'r.vehicle_id', 'branch_id' => 'r.pickup_branch_id', 'staff_id' => 'u.emp_id']);
         foreach ($q->orderBy('i.ID')->select(['i.*', 'r.rental_snapshot'])->lazy(200) as $i) {
             $s = json_decode($i->rental_snapshot, true);
-            yield ['Date' => $i->issued_on, 'Entry' => 'Issued Invoice Revenue', 'Reference' => 'INV-'.str_pad($i->ID, 6, '0', STR_PAD_LEFT), 'Customer' => $s['customer']['name'], 'Vehicle' => $s['vehicle']['number'], 'Branch' => $s['pickup_branch'], ...$empty, 'Recognized Revenue' => (BookingService::cents($i->total) - BookingService::cents($i->tax)) / 100, 'Invoice Total' => $this->money($i->total), 'Tax' => $this->money($i->tax), 'Discount' => $this->money($i->discount), 'Additional Charges' => $this->money($i->additional_charges)];
+            yield ['Date' => $i->issued_on, 'Entry' => 'Issued Invoice Revenue', 'Reference' => \App\Services\CodeGenerator::reference('invoice', $i->ID), 'Customer' => $s['customer']['name'], 'Vehicle' => $s['vehicle']['number'], 'Branch' => $s['pickup_branch'], ...$empty, 'Recognized Revenue' => (BookingService::cents($i->total) - BookingService::cents($i->tax)) / 100, 'Invoice Total' => $this->money($i->total), 'Tax' => $this->money($i->tax), 'Discount' => $this->money($i->discount), 'Additional Charges' => $this->money($i->additional_charges)];
         }
         foreach (['booking_payment_tb' => 'Booking Advance', 'invoice_payment_tb' => 'Invoice Receipt'] as $table => $kind) {
             $q = DB::table($table.' as p');
@@ -210,7 +212,7 @@ class ReportService
             }$q->join('customer_tb as c', 'c.ID', '=', 'b.customer_id')->join('vehicle_tb as v', 'v.ID', '=', 'b.vehicle_id')->join('branch_tb as br', 'br.ID', '=', 'b.pickup_branch_id')->leftJoin('users_tb as u', 'u.ID', '=', 'p.recorded_by')->whereDate('p.paid_on', '>=', $f['from'])->whereDate('p.paid_on', '<=', $f['to']);
             $this->entity($q, $f, ['customer_id' => 'b.customer_id', 'vehicle_id' => 'b.vehicle_id', 'branch_id' => 'b.pickup_branch_id', 'staff_id' => 'u.emp_id']);
             foreach ($q->orderBy('p.ID')->select(['p.*', 'c.full_name', 'v.vehicle_number', 'br.branch_name'])->lazy(200) as $p) {
-                yield ['Date' => $p->paid_on, 'Entry' => $kind, 'Reference' => ($kind === 'Booking Advance' ? 'ADV-' : 'PAY-').$p->ID, 'Customer' => $p->full_name, 'Vehicle' => $p->vehicle_number, 'Branch' => $p->branch_name, ...$empty, 'Rental Cash Received' => $this->money($p->amount)];
+                yield ['Date' => $p->paid_on, 'Entry' => $kind, 'Reference' => \App\Services\CodeGenerator::reference($kind === 'Booking Advance' ? 'advance' : 'payment', $p->ID), 'Customer' => $p->full_name, 'Vehicle' => $p->vehicle_number, 'Branch' => $p->branch_name, ...$empty, 'Rental Cash Received' => $this->money($p->amount)];
             }
         }
         foreach ($this->depositRows($f) as $d) {
@@ -220,12 +222,12 @@ class ReportService
 
     private function depositRows(array $f): iterable
     {
-        $q = DB::table('rental_deposit_tb as d')->join('rental_tb as r', 'r.ID', '=', 'd.rental_id')->leftJoin('users_tb as u', 'u.ID', '=', 'd.recorded_by');
+        $q = DB::table('rental_deposit_tb as d')->join('rental_tb as r', 'r.ID', '=', 'd.rental_id')->leftJoin('users_tb as u', 'u.ID', '=', 'd.recorded_by')->leftJoin('staff_tb as employee', 'employee.ID', '=', 'u.emp_id');
         $this->dates($q, 'd.created_at', $f);
         $this->entity($q, $f, ['customer_id' => 'r.customer_id', 'vehicle_id' => 'r.vehicle_id', 'branch_id' => 'r.pickup_branch_id', 'staff_id' => 'u.emp_id']);
-        foreach ($q->orderBy('d.ID')->select(['d.*', 'r.rental_snapshot'])->lazy(200) as $d) {
+        foreach ($q->orderBy('d.ID')->select(['d.*', 'r.rental_snapshot', 'u.username', 'employee.first_name', 'employee.last_name'])->lazy(200) as $d) {
             $s = json_decode($d->rental_snapshot, true);
-            yield ['Date' => CarbonImmutable::parse($d->created_at, 'UTC')->setTimezone(config('rental.timezone'))->toDateString(), 'Rental' => 'RNT-'.str_pad($d->rental_id, 6, '0', STR_PAD_LEFT), 'Invoice' => $d->invoice_id ? 'INV-'.str_pad($d->invoice_id, 6, '0', STR_PAD_LEFT) : '', 'Customer' => $s['customer']['name'], 'Vehicle' => $s['vehicle']['number'], 'Branch' => $s['pickup_branch'], 'Entry' => $d->entry_type, 'Deposit Received' => $d->entry_type === 'Received' ? $this->money($d->amount) : 0, 'Deposit Applied' => $d->entry_type === 'Applied' ? $this->money($d->amount) : 0, 'Deposit Refunded' => $d->entry_type === 'Refunded' ? $this->money($d->amount) : 0, 'Method' => $d->method, 'Reference' => $d->reference ?? 'DEP-'.$d->ID, 'Recorded By' => $d->recorded_by, 'Reason' => $d->reason];
+            yield ['Date' => CarbonImmutable::parse($d->created_at, 'UTC')->setTimezone(config('rental.timezone'))->toDateString(), 'Rental' => \App\Services\CodeGenerator::reference('rental', $d->rental_id), 'Invoice' => $d->invoice_id ? \App\Services\CodeGenerator::reference('invoice', $d->invoice_id) : '', 'Customer' => $s['customer']['name'], 'Vehicle' => $s['vehicle']['number'], 'Branch' => $s['pickup_branch'], 'Entry' => $d->entry_type, 'Deposit Received' => $d->entry_type === 'Received' ? $this->money($d->amount) : 0, 'Deposit Applied' => $d->entry_type === 'Applied' ? $this->money($d->amount) : 0, 'Deposit Refunded' => $d->entry_type === 'Refunded' ? $this->money($d->amount) : 0, 'Method' => $d->method, 'Reference' => $d->reference ?? \App\Services\CodeGenerator::reference('deposit', $d->ID), 'Recorded By' => (trim($d->first_name.' '.$d->last_name) ?: ($d->username ?: ($d->recorded_by === null ? 'Not recorded' : 'Account unavailable'))), 'Reason' => $d->reason];
         }
     }
 

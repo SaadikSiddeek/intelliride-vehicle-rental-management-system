@@ -121,3 +121,81 @@ test('private upload failures roll back activation deposit and booking conversio
     expect(Rental::count())->toBe(0)->and(DB::table('rental_deposit_tb')->count())->toBe(0)->and(DB::table('vehicle_unavailability_tb')->count())->toBe(0);
     expect(DB::table('booking_tb')->value('status'))->toBe('Confirmed');
 });
+
+
+test('pickup boundaries use the reservation business timezone independently of application timezone', function ($start, $end, $clock, $pickup, $accepted, $message) {
+    config(['app.timezone' => 'America/New_York']);
+    $this->travelTo(\Carbon\CarbonImmutable::parse($clock, 'Asia/Colombo')->utc());
+    DB::table('booking_tb')->where('ID', 1)->update(['pickup_at' => $start, 'expected_return_at' => $end]);
+    $response=$this->postJson('/api/save_handover',handoverPayload(['actual_pickup_at'=>$pickup]));
+    if ($accepted) {
+        $response->assertCreated();
+        expect(DB::table('rental_tb')->value('actual_pickup_at'))->toBe(str_replace('T',' ',$pickup).':00');
+        expect(DB::table('booking_tb')->value('status'))->toBe('Converted to Rental');
+    } else {
+        $response->assertUnprocessable()->assertJsonValidationErrors('actual_pickup_at');
+        if($message) expect($response->json('errors.actual_pickup_at.0'))->toContain($message);
+        expect(DB::table('rental_tb')->count())->toBe(0)->and(DB::table('rental_deposit_tb')->count())->toBe(0);
+    }
+})->with([
+    'inside reservation'=>['2026-12-01 10:00:00','2026-12-02 10:00:00','2026-12-01 12:00:00','2026-12-01T11:00',true,null],
+    'inclusive start'=>['2026-12-01 10:00:00','2026-12-02 10:00:00','2026-12-01 12:00:00','2026-12-01T10:00',true,null],
+    'exclusive return boundary'=>['2026-12-01 10:00:00','2026-12-02 10:00:00','2026-12-02 12:00:00','2026-12-02T10:00',false,'before the expected return'],
+    'within existing early handover allowance'=>['2026-12-01 10:00:00','2026-12-02 10:00:00','2026-12-01 12:00:00','2026-12-01T09:59',true,null],
+    'inclusive early boundary'=>['2026-12-01 10:00:00','2026-12-02 10:00:00','2026-12-01 12:00:00','2026-12-01T09:30',true,null],
+    'before early boundary'=>['2026-12-01 10:00:00','2026-12-02 10:00:00','2026-12-01 12:00:00','2026-12-01T09:29',false,'before the reserved'],
+    'after end'=>['2026-12-01 10:00:00','2026-12-02 10:00:00','2026-12-03 12:00:00','2026-12-02T10:01',false,'before the expected return'],
+    'future today'=>['2026-12-01 10:00:00','2026-12-02 10:00:00','2026-12-01 12:00:00','2026-12-01T12:01',false,'future'],
+    'current minute'=>['2026-12-01 10:00:00','2026-12-02 10:00:00','2026-12-01 12:00:30','2026-12-01T12:00',true,null],
+    'future reservation'=>['2026-12-02 10:00:00','2026-12-03 10:00:00','2026-12-01 12:00:00','2026-12-02T10:00',false,'future'],
+    'past reservation valid pickup'=>['2026-12-01 10:00:00','2026-12-02 10:00:00','2026-12-03 12:00:00','2026-12-01T11:00',true,null],
+    'Colombo midnight previous UTC day'=>['2026-12-01 00:00:00','2026-12-02 00:00:00','2026-12-01 00:05:00','2026-12-01T00:00',true,null],
+    'early handover across midnight'=>['2026-12-01 00:00:00','2026-12-02 00:00:00','2026-12-01 00:05:00','2026-11-30T23:59',true,null],
+    'before early midnight boundary'=>['2026-12-01 00:00:00','2026-12-02 00:00:00','2026-12-01 00:05:00','2026-11-30T23:29',false,'before the reserved'],
+    'missing timestamp'=>['2026-12-01 10:00:00','2026-12-02 10:00:00','2026-12-01 12:00:00','',false,null],
+    'invalid timestamp'=>['2026-12-01 10:00:00','2026-12-02 10:00:00','2026-12-01 12:00:00','not-a-date',false,null],
+    'date only unsupported'=>['2026-12-01 10:00:00','2026-12-02 10:00:00','2026-12-01 12:00:00','2026-12-01',false,null],
+    'UTC offset not the wall-clock contract'=>['2026-12-01 10:00:00','2026-12-02 10:00:00','2026-12-01 12:00:00','2026-12-01T05:30Z',false,null],
+]);
+
+test('a rejected pickup can be corrected and context returns the business clock for the selected booking', function () {
+    $this->travelTo(\Carbon\CarbonImmutable::parse('2026-12-01 12:00:00','Asia/Colombo')->utc());
+    $this->postJson('/api/handover_context',['booking_id'=>1])->assertOk()->assertJsonPath('data.rental_timezone','Asia/Colombo')->assertJsonPath('data.server_now','2026-12-01T12:00');
+    $this->postJson('/api/save_handover',handoverPayload(['actual_pickup_at'=>'2026-12-01T12:01']))->assertUnprocessable()->assertJsonValidationErrors('actual_pickup_at');
+    $this->postJson('/api/save_handover',handoverPayload(['actual_pickup_at'=>'2026-12-01T11:59']))->assertCreated();
+    expect(DB::table('rental_tb')->count())->toBe(1)->and(DB::table('rental_deposit_tb')->count())->toBe(1);
+});
+
+
+test('video15November pickup is rejected for16November reservation and uses the existing thirty minute early allowance', function () {
+    // Faithful isolated copy of recording values; never modify the operator's booking.
+    DB::table('booking_tb')->where('ID',1)->update(['pickup_at'=>'2026-11-16 12:00:00','expected_return_at'=>'2026-11-23 12:00:00']);
+    $this->travelTo(\Carbon\CarbonImmutable::parse('2026-11-15 20:50:06','Asia/Colombo')->utc());
+    $this->postJson('/api/handover_context',['booking_id'=>1])->assertOk()->assertJsonPath('data.handover_not_started',true)->assertJsonPath('data.pickup_min','2026-11-16T11:30')->assertJsonPath('data.server_now','2026-11-15T20:50');
+    $this->postJson('/api/save_handover',handoverPayload(['actual_pickup_at'=>'2026-11-15T08:47']))->assertUnprocessable()->assertJsonValidationErrors('actual_pickup_at');
+    // Even choosing an in-period future pickup today must remain invalid.
+    $this->postJson('/api/save_handover',handoverPayload(['actual_pickup_at'=>'2026-11-16T12:00']))->assertUnprocessable()->assertJsonValidationErrors('actual_pickup_at');
+    expect(Rental::count())->toBe(0)->and(DB::table('rental_deposit_tb')->count())->toBe(0);
+    $this->travelTo(\Carbon\CarbonImmutable::parse('2026-11-16 12:00:00','Asia/Colombo')->utc());
+    $this->postJson('/api/handover_context',['booking_id'=>1])->assertOk()->assertJsonPath('data.handover_not_started',false)->assertJsonPath('data.pickup_min','2026-11-16T11:30')->assertJsonPath('data.pickup_max','2026-11-16T12:00');
+    $this->postJson('/api/save_handover',handoverPayload(['actual_pickup_at'=>'2026-11-16T12:00']))->assertCreated();
+    expect(DB::table('rental_tb')->value('actual_pickup_at'))->toBe('2026-11-16 12:00:00');
+    $this->postJson('/api/save_handover',handoverPayload(['actual_pickup_at'=>'2026-11-16T12:00']))->assertUnprocessable();
+    expect(Rental::count())->toBe(1)->and(DB::table('rental_deposit_tb')->count())->toBe(1);
+});
+
+test('expired confirmed booking can still record legitimate historical pickup without permitting the return boundary',function(){
+    $this->travelTo(\Carbon\CarbonImmutable::parse('2026-12-03 12:00:00','Asia/Colombo')->utc());
+    $this->postJson('/api/handover_context',['booking_id'=>1])->assertOk()->assertJsonPath('data.handover_not_started',false)->assertJsonPath('data.pickup_max','2026-12-02T09:59');
+    $this->postJson('/api/save_handover',handoverPayload(['actual_pickup_at'=>'2026-12-01T11:00']))->assertCreated();
+});
+
+test('successful handover works without email configuration and dispatches no mail or jobs', function () {
+    \Illuminate\Support\Facades\Queue::fake();
+    \Illuminate\Support\Facades\Mail::fake();
+    \Illuminate\Support\Facades\Notification::fake();
+    $this->postJson('/api/save_handover', handoverPayload())->assertCreated()->assertJsonMissingPath('data.notification');
+    \Illuminate\Support\Facades\Queue::assertNothingPushed();
+    \Illuminate\Support\Facades\Mail::assertNothingSent();
+    \Illuminate\Support\Facades\Notification::assertNothingSent();
+});

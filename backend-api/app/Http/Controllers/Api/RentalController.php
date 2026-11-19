@@ -26,16 +26,16 @@ class RentalController extends Controller
         $this->authorizeStaff($request);
         $data = $request->validate(['id' => ['nullable', 'integer', 'min:1'], 'q' => ['nullable', 'string', 'max:100']]);
         $query = DB::table('booking_tb as b')->join('customer_tb as c', 'c.ID', '=', 'b.customer_id')->join('vehicle_tb as v', 'v.ID', '=', 'b.vehicle_id')
-            ->where('b.status', 'Confirmed')->whereNotExists(fn ($q) => $q->selectRaw('1')->from('rental_tb as r')->whereColumn('r.booking_id', 'b.ID'));
+            ->where('b.status', 'Confirmed')->whereNotExists(fn($q) => $q->selectRaw('1')->from('rental_tb as r')->whereColumn('r.booking_id', 'b.ID'));
         if (isset($data['id'])) {
             $query->where('b.ID', $data['id']);
         } elseif (! empty($data['q'])) {
-            $q = '%'.$data['q'].'%';
-            $query->where(fn ($query) => $query->where('c.full_name', 'like', $q)->orWhere('v.vehicle_number', 'like', $q)->orWhere('b.ID', preg_replace('/^BKG-0*/i', '', $data['q'])));
+            $q = '%' . $data['q'] . '%';
+            $query->where(fn($query) => $query->where('c.full_name', 'like', $q)->orWhere('v.vehicle_number', 'like', $q)->orWhere('b.ID', preg_replace('/^BKG-0*/i', '', $data['q'])));
         }
         $rows = $query->orderBy('b.pickup_at')->limit(20)->get(['b.ID as id', 'c.full_name', 'v.vehicle_number']);
 
-        return response()->json(['success' => true, 'data' => $rows->map(fn ($r) => ['id' => $r->id, 'text' => 'BKG-'.str_pad($r->id, 6, '0', STR_PAD_LEFT).' — '.$r->full_name.' — '.$r->vehicle_number])]);
+        return response()->json(['success' => true, 'data' => $rows->map(fn($r) => ['id' => $r->id, 'text' => \App\Services\CodeGenerator::reference('booking', $r->id) . ' — ' . $r->full_name . ' — ' . $r->vehicle_number])]);
     }
 
     public function handoverContext(Request $request)
@@ -47,6 +47,30 @@ class RentalController extends Controller
             ->first(['b.*', 'c.full_name as customer_name', 'v.vehicle_number', 'v.mileage', 'br.branch_name']);
         abort_unless($row, 404, 'Booking not found.');
         $row->pricing_snapshot = json_decode($row->pricing_snapshot, true);
+        $row->rental_timezone = config('rental.timezone');
+        $clock = CarbonImmutable::now(config('rental.timezone'));
+        $start = CarbonImmutable::parse($row->pickup_at, config('rental.timezone'));
+        $end = CarbonImmutable::parse($row->expected_return_at, config('rental.timezone'));
+        // Allow handover up to 30 minutes before the reserved pickup.
+        $earliestPickup = $start->subMinutes(30);
+
+        $row->server_now = $clock->format('Y-m-d\TH:i');
+        $row->pickup_min = $earliestPickup->format('Y-m-d\TH:i');
+        $row->pickup_max = $clock->min($end->subMinute())->format('Y-m-d\TH:i');
+
+        // Expired confirmed bookings can still record a valid historical pickup.
+        $row->handover_not_started = $clock->lessThan($earliestPickup);
+
+        $row->handover_notice = $row->handover_not_started
+            ? 'This reservation starts at ' .
+            $start->format('Y-m-d H:i') . ' ' .
+            config('rental.timezone') .
+            '. Handover is allowed from ' .
+            $earliestPickup->format('Y-m-d H:i') .
+            ', 30 minutes before reserved pickup. Server time: ' .
+            $clock->format('Y-m-d H:i') .
+            '. Refresh eligibility when the handover window opens.'
+            : null;
 
         return response()->json(['status' => true, 'data' => $row])->header('Cache-Control', 'private, no-store');
     }
@@ -63,13 +87,17 @@ class RentalController extends Controller
             'driver_document_number' => ['required', 'string', 'max:50'],
             'driver_licence_number' => ['required', 'string', 'max:50'],
             'driver_licence_expiry' => ['required', 'date_format:Y-m-d'],
-            'identity_verified' => ['accepted'], 'licence_verified' => ['accepted'],
-            'agreement_accepted' => ['accepted'], 'agreement_reference' => ['required', 'string', 'max:150'],
-            'existing_damage' => ['nullable', 'string', 'max:4000'], 'condition_notes' => ['required', 'string', 'max:4000'],
+            'identity_verified' => ['accepted'],
+            'licence_verified' => ['accepted'],
+            'agreement_accepted' => ['accepted'],
+            'agreement_reference' => ['required', 'string', 'max:150'],
+            'existing_damage' => ['nullable', 'string', 'max:4000'],
+            'condition_notes' => ['required', 'string', 'max:4000'],
             'deposit_received' => ['required', 'numeric', 'regex:/^\d{1,10}(\.\d{1,2})?$/'],
             'deposit_method' => ['nullable', Rule::in(['cash', 'bank_transfer', 'card'])],
             'deposit_reference' => ['nullable', 'string', 'max:150'],
-            'photos' => ['sometimes', 'array', 'max:10'], 'photos.*' => ['file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'photos' => ['sometimes', 'array', 'max:10'],
+            'photos.*' => ['file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ]);
         $paths = [];
         try {
@@ -85,8 +113,25 @@ class RentalController extends Controller
                     throw ValidationException::withMessages(['booking_id' => 'The booked vehicle is not available at the pickup branch.']);
                 }
                 $pickup = CarbonImmutable::createFromFormat('!Y-m-d\TH:i', $data['actual_pickup_at'], config('rental.timezone'));
-                if ($pickup->isAfter(now(config('rental.timezone'))) || $pickup->format('Y-m-d H:i:s') < $booking->pickup_at || $pickup->format('Y-m-d H:i:s') >= $booking->expected_return_at) {
-                    throw ValidationException::withMessages(['actual_pickup_at' => 'Pickup must be within the reserved period and cannot be in the future.']);
+                // Booking DATETIME columns and the submitted minute value are Colombo wall-clock times.
+                $reservedStart = CarbonImmutable::parse($booking->pickup_at, config('rental.timezone'));
+                $reservedEnd = CarbonImmutable::parse($booking->expected_return_at, config('rental.timezone'));
+                $earliestPickup = $reservedStart->subMinutes(30);
+
+                if ($pickup->lessThan($earliestPickup)) {
+                    throw ValidationException::withMessages([
+                        'actual_pickup_at' =>
+                        'Handover is allowed from ' .
+                            $earliestPickup->format('Y-m-d H:i') .
+                            ' (' . config('rental.timezone') . '), up to 30 minutes before the reserved pickup.',
+                    ]);
+                }
+                // End remains exclusive: a handover must leave a positive rental period.
+                if ($pickup->greaterThanOrEqualTo($reservedEnd)) {
+                    throw ValidationException::withMessages(['actual_pickup_at' => 'Pickup must be before the expected return time (' . config('rental.timezone') . ').']);
+                }
+                if ($pickup->greaterThan(CarbonImmutable::now(config('rental.timezone')))) {
+                    throw ValidationException::withMessages(['actual_pickup_at' => 'Pickup cannot be in the future. Enter the actual time in ' . config('rental.timezone') . '.']);
                 }
                 if ($data['driver_licence_expiry'] < substr($booking->expected_return_at, 0, 10)) {
                     throw ValidationException::withMessages(['driver_licence_expiry' => 'The driving licence must cover the expected rental period.']);
@@ -114,27 +159,47 @@ class RentalController extends Controller
                 $user = $request->user();
                 // UserController stores staff_tb.ID in emp_id. staff_tb.user_id is the creator, not the employee link.
                 $staff = ctype_digit((string) $user->emp_id) ? DB::table('staff_tb')->where('ID', $user->emp_id)->where('status', 1)->first() : null;
-                $staffName = $staff ? trim($staff->first_name.' '.$staff->last_name) : $user->username;
+                $staffName = $staff ? trim($staff->first_name . ' ' . $staff->last_name) : $user->username;
                 $block = DB::table('vehicle_unavailability_tb')->insertGetId(['vehicle_id' => $vehicle->ID, 'booking_id' => $booking->ID, 'kind' => 'Active Rental', 'status' => 'Active', 'starts_at' => $pickup->format('Y-m-d H:i:s'), 'ends_at' => null, 'notes' => 'Open-ended rental block; close only after reviewed return finalization.', 'created_at' => now(), 'updated_at' => now()], 'ID');
                 $id = Rental::query()->create([
-                    'booking_id' => $booking->ID, 'vehicle_id' => $vehicle->ID, 'customer_id' => $customer->ID, 'pickup_branch_id' => $branch->ID, 'availability_block_id' => $block,
-                    'handed_over_by' => $user->getAuthIdentifier(), 'handover_staff_id' => $staff?->ID, 'handover_staff_name' => $staffName,
-                    'actual_pickup_at' => $pickup->format('Y-m-d H:i:s'), 'starting_odometer' => $data['starting_odometer'], 'pickup_fuel_litres' => $data['pickup_fuel_litres'],
-                    'driver_name' => $data['driver_name'], 'driver_document_number' => $data['driver_document_number'], 'driver_licence_number' => $data['driver_licence_number'], 'driver_licence_expiry' => $data['driver_licence_expiry'],
-                    'identity_verified' => true, 'licence_verified' => true, 'existing_damage' => $data['existing_damage'] ?? null, 'condition_notes' => $data['condition_notes'],
-                    'agreement_reference' => $data['agreement_reference'], 'agreement_accepted_at' => now(), 'pricing_snapshot' => $pricing,
-                    'rental_snapshot' => ['timezone' => config('rental.timezone'), 'expected_return_at' => $booking->expected_return_at,
+                    'booking_id' => $booking->ID,
+                    'vehicle_id' => $vehicle->ID,
+                    'customer_id' => $customer->ID,
+                    'pickup_branch_id' => $branch->ID,
+                    'availability_block_id' => $block,
+                    'handed_over_by' => $user->getAuthIdentifier(),
+                    'handover_staff_id' => $staff?->ID,
+                    'handover_staff_name' => $staffName,
+                    'actual_pickup_at' => $pickup->format('Y-m-d H:i:s'),
+                    'starting_odometer' => $data['starting_odometer'],
+                    'pickup_fuel_litres' => $data['pickup_fuel_litres'],
+                    'driver_name' => $data['driver_name'],
+                    'driver_document_number' => $data['driver_document_number'],
+                    'driver_licence_number' => $data['driver_licence_number'],
+                    'driver_licence_expiry' => $data['driver_licence_expiry'],
+                    'identity_verified' => true,
+                    'licence_verified' => true,
+                    'existing_damage' => $data['existing_damage'] ?? null,
+                    'condition_notes' => $data['condition_notes'],
+                    'agreement_reference' => $data['agreement_reference'],
+                    'agreement_accepted_at' => now(),
+                    'pricing_snapshot' => $pricing,
+                    'rental_snapshot' => [
+                        'timezone' => config('rental.timezone'),
+                        'expected_return_at' => $booking->expected_return_at,
                         'customer' => ['name' => $customer->full_name, 'document_type' => $customer->document_type, 'document_number' => $customer->document_number, 'phone' => $customer->mobile, 'address' => $customer->address],
-                        'vehicle' => ['name' => trim((string) DB::table('vehicle_brand_tb')->where('ID', $vehicle->brand_id)->value('brand_name').' '.(string) DB::table('vehicle_model_tb')->where('ID', $vehicle->model_id)->value('model_name')), 'number' => $vehicle->vehicle_number, 'brand_id' => $vehicle->brand_id, 'model_id' => $vehicle->model_id],
-                        'pickup_branch' => $branch->branch_name, 'return_branch' => $branch->branch_name,
-                        'return_policy' => app(BusinessProfileService::class)->policy()],
+                        'vehicle' => ['name' => trim((string) DB::table('vehicle_brand_tb')->where('ID', $vehicle->brand_id)->value('brand_name') . ' ' . (string) DB::table('vehicle_model_tb')->where('ID', $vehicle->model_id)->value('model_name')), 'number' => $vehicle->vehicle_number, 'brand_id' => $vehicle->brand_id, 'model_id' => $vehicle->model_id],
+                        'pickup_branch' => $branch->branch_name,
+                        'return_branch' => $branch->branch_name,
+                        'return_policy' => app(BusinessProfileService::class)->policy()
+                    ],
                     'status' => 'Active',
                 ])->ID;
                 if ($deposit > 0) {
                     DB::table('rental_deposit_tb')->insert(['rental_id' => $id, 'entry_type' => 'Received', 'amount' => BookingService::money($deposit), 'method' => $data['deposit_method'], 'reference' => $data['deposit_reference'] ?? null, 'reason' => 'Agreed refundable security deposit collected at handover.', 'recorded_by' => $user->getAuthIdentifier(), 'created_at' => now(), 'updated_at' => now()]);
                 }
                 foreach ($request->file('photos', []) as $file) {
-                    $path = Storage::disk('rental_documents')->putFile('rental_'.$id.'/handover', $file);
+                    $path = Storage::disk('rental_documents')->putFile('rental_' . $id . '/handover', $file);
                     $paths[] = $path;
                     DB::table('rental_photo_tb')->insert(['rental_id' => $id, 'stage' => 'Handover', 'path' => $path, 'uploaded_by' => $user->getAuthIdentifier(), 'created_at' => now(), 'updated_at' => now()]);
                 }
@@ -169,15 +234,23 @@ class RentalController extends Controller
             $query->where('pickup_branch_id', $filters['branch_id']);
         }
         // List deliberately excludes document numbers and internal storage paths.
-        $rows = $query->orderByDesc('ID')->get()->map(fn ($r) => [
-            'id' => $r->ID, 'rental_number' => 'RNT-'.str_pad($r->ID, 6, '0', STR_PAD_LEFT), 'booking_number' => 'BKG-'.str_pad($r->booking_id, 6, '0', STR_PAD_LEFT),
-            'customer_name' => $r->rental_snapshot['customer']['name'], 'vehicle_number' => $r->rental_snapshot['vehicle']['number'],
-            'pickup_branch' => $r->rental_snapshot['pickup_branch'], 'actual_pickup_at' => $r->actual_pickup_at, 'expected_return_at' => $r->rental_snapshot['expected_return_at'],
-            'starting_odometer' => $r->starting_odometer, 'pickup_fuel_litres' => $r->pickup_fuel_litres, 'handed_over_by' => $r->handover_staff_name, 'status' => $r->status,
+        $rows = $query->orderByDesc('ID')->get()->map(fn($r) => [
+            'id' => $r->ID,
+            'rental_number' => \App\Services\CodeGenerator::reference('rental', $r->ID),
+            'booking_number' => \App\Services\CodeGenerator::reference('booking', $r->booking_id),
+            'customer_name' => $r->rental_snapshot['customer']['name'],
+            'vehicle_number' => $r->rental_snapshot['vehicle']['number'],
+            'pickup_branch' => $r->rental_snapshot['pickup_branch'],
+            'actual_pickup_at' => $r->actual_pickup_at,
+            'expected_return_at' => $r->rental_snapshot['expected_return_at'],
+            'starting_odometer' => $r->starting_odometer,
+            'pickup_fuel_litres' => $r->pickup_fuel_litres,
+            'handed_over_by' => $r->handover_staff_name,
+            'status' => $r->status,
         ]);
         if (! empty($filters['q'])) {
             $q = mb_strtolower($filters['q']);
-            $rows = $rows->filter(fn ($r) => str_contains(mb_strtolower(implode(' ', array_values($r))), $q))->values();
+            $rows = $rows->filter(fn($r) => str_contains(mb_strtolower(implode(' ', array_values($r))), $q))->values();
         }
 
         return response()->json(['status' => true, 'data' => $rows])->header('Cache-Control', 'private, no-store');
@@ -201,6 +274,6 @@ class RentalController extends Controller
         $disk = Storage::disk('rental_documents');
         abort_unless($photo && $disk->exists($photo->path), 404);
 
-        return $disk->download($photo->path, 'rental-'.$photo->rental_id.'-'.strtolower($photo->stage).'-'.$photo->ID.'.'.pathinfo($photo->path, PATHINFO_EXTENSION), ['Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
+        return $disk->download($photo->path, 'rental-' . $photo->rental_id . '-' . strtolower($photo->stage) . '-' . $photo->ID . '.' . pathinfo($photo->path, PATHINFO_EXTENSION), ['Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
     }
 }

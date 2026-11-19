@@ -1,3 +1,4 @@
+import { statusColumn } from "@/lib/status-column";
 import usePermissions from "@/hooks/usePermissions";
 import PermissionGate from "@/components/PermissionGate";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -431,24 +432,7 @@ export default function Customer() {
           minWidth: 165,
           formatter: "plaintext",
         },
-        {
-          title: "Status",
-          field: "status",
-          width: 110,
-          hozAlign: "center",
-          formatter(cell) {
-            const value = cell.getValue();
-            const badge = document.createElement("span");
-            const color = {
-              Active: "bg-[var(--success-soft)] text-[var(--success)]",
-              Inactive: "bg-secondary text-muted-foreground",
-              Blocked: "bg-[var(--danger-soft)] text-destructive",
-            };
-            badge.className = `rounded-full px-3 py-1 text-xs font-medium ${color[value] || ""}`;
-            badge.textContent = value;
-            return badge;
-          },
-        },
+        statusColumn("customers", can("customers.edit")),
         {
           title: "Actions",
           field: "id",

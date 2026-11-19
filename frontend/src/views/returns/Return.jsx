@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/display-values.mjs";
 import usePermissions from "@/hooks/usePermissions";
 import PermissionGate from "@/components/PermissionGate";
 import useRecordLink from "@/hooks/useRecordLink";
@@ -19,7 +20,6 @@ import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 
 const EMPTY = { rental_id: "", actual_return_at: "", ending_odometer: "", return_fuel_litres: "", condition_notes: "", new_damage: "", damage_estimate: "0.00", damage_charge: "0.00", damage_reason: "", vehicle_after_return: "Inspection Required", apply_deposit: false, status: "Draft Assessment" };
 const REVIEW = { review_notes: "", review_approved: false, damage_approved: false, deposit_deduction_approved: false, vehicle_release_approved: false };
-const money = new Intl.NumberFormat("en-LK", { style: "currency", currency: "LKR" });
 
 function Settlement({ calculation: c }) {
   if (!c) return <p className="text-sm text-muted-foreground">Save the assessment, then open it to review the backend calculation before finalizing.</p>;
@@ -28,13 +28,13 @@ function Settlement({ calculation: c }) {
     <dl className="space-y-2 rounded-lg bg-secondary/40 p-4 text-sm">
       {[
         ["Actual duration", `${c.duration_minutes} minutes`], ["Distance", `${c.actual_distance_km} km`], ["Included kilometres", c.included_km == null ? "Unlimited" : `${c.included_km} km`],
-        [`Excess ${c.extra_km} km × ${money.format(c.extra_km_rate)}`, money.format(c.extra_km_charge)],
+        [`Excess ${c.extra_km} km × ${formatMoney(c.extra_km_rate)}`, formatMoney(c.extra_km_charge)],
         ["Late duration / grace", `${c.late_minutes} / ${c.grace_minutes ?? "Unconfigured"} minutes`],
-        ["Chargeable started hours", c.chargeable_late_hours], ["Hourly late rate / 24-hour cap", `${c.late_hourly_rate == null ? "Not configured / not required" : money.format(c.late_hourly_rate)} / ${c.late_24h_cap == null ? "Not configured / not required" : money.format(c.late_24h_cap)}`],
-        ["Late charge", money.format(c.late_charge)], ["Fuel shortage", `${c.missing_fuel_litres} litres`], ["Fuel price per litre", c.fuel_price_per_litre == null ? "Not configured / not required" : money.format(c.fuel_price_per_litre)], ["Fuel charge", money.format(c.fuel_charge)],
-        ["Damage estimate", money.format(c.damage_estimate)], ["Damage charge requiring approval", money.format(c.damage_charge)],
-        ["Confirmed rental total", money.format(c.base_rental_total)], ["Additional charges", money.format(c.additional_charges)], ["Additional tax", money.format(c.additional_tax)], ["Invoice total", money.format(c.total)],
-        ["Original booking advances", money.format(c.booking_advance_amount)], ["Deposit received", money.format(c.deposit_received)], ["Deposit currently held", money.format(c.deposit_held)], ["Proposed deposit deduction", money.format(c.deposit_to_apply)], ["Refundable deposit — no automatic refund", money.format(c.refundable_deposit)], ["Customer outstanding", money.format(c.outstanding)],
+        ["Chargeable started hours", c.chargeable_late_hours], ["Hourly late rate / 24-hour cap", `${c.late_hourly_rate == null ? "Not configured / not required" : formatMoney(c.late_hourly_rate)} / ${c.late_24h_cap == null ? "Not configured / not required" : formatMoney(c.late_24h_cap)}`],
+        ["Late charge", formatMoney(c.late_charge)], ["Fuel shortage", `${c.missing_fuel_litres} litres`], ["Fuel price per litre", c.fuel_price_per_litre == null ? "Not configured / not required" : formatMoney(c.fuel_price_per_litre)], ["Fuel charge", formatMoney(c.fuel_charge)],
+        ["Damage estimate", formatMoney(c.damage_estimate)], ["Damage charge requiring approval", formatMoney(c.damage_charge)],
+        ["Confirmed rental total", formatMoney(c.base_rental_total)], ["Additional charges", formatMoney(c.additional_charges)], ["Additional tax", formatMoney(c.additional_tax)], ["Invoice total", formatMoney(c.total)],
+        ["Original booking advances", formatMoney(c.booking_advance_amount)], ["Deposit received", formatMoney(c.deposit_received)], ["Deposit currently held", formatMoney(c.deposit_held)], ["Proposed deposit deduction", formatMoney(c.deposit_to_apply)], ["Refundable deposit — no automatic refund", formatMoney(c.refundable_deposit)], ["Customer outstanding", formatMoney(c.outstanding)],
       ].map(([label, value]) => <div key={label} className="flex justify-between gap-4"><dt className="text-muted-foreground">{label}</dt><dd className="text-right font-semibold tabular-nums">{value}</dd></div>)}
     </dl>
     <p className="text-xs text-muted-foreground">Within grace there is no late charge. Beyond grace, started hours run from scheduled return, capped in each 24-hour period. Deposits remain separate from revenue.</p>
@@ -65,7 +65,7 @@ export default function Return() {
       const { data } = await axiosClient.post("/fetch_return_data", { upd_id: id }, { signal: request.signal });
       if (!request.signal.aborted) {
         const row = data.data; setRecord(row); setRental(row.rental);
-        reset(Object.fromEntries(Object.keys(EMPTY).map((key) => [key, key === "actual_return_at" ? row[key].slice(0, 16).replace(" ", "T") : key === "apply_deposit" ? !!Number(row[key]) : row[key] ?? EMPTY[key]])));
+        reset(Object.fromEntries(Object.keys(EMPTY).map((key) => [key, key === "actual_return_at" ? (row[key] ?? "").slice(0, 16).replace(" ", "T") : key === "apply_deposit" ? !!Number(row[key]) : row[key] ?? EMPTY[key]])));
       }
     } catch (error) { if (!request.signal.aborted) { setOpen(false); setPageError(error.response?.data?.message || error.message); } }
     finally { if (formRequest.current === request) formRequest.current = null; if (!request.signal.aborted) setBusy(false); }
@@ -109,7 +109,7 @@ export default function Return() {
     const request = new AbortController(); formRequest.current = request; setBusy(true); setFormError(""); review.clearErrors();
     try {
       const { data } = await axiosClient.post("/finalize_return", { ...values, upd_id: record.ID, revision: record.revision, review_hash: record.calculation.review_hash }, { signal: request.signal });
-      if (!request.signal.aborted) { setOpen(false); setSuccess(`${data.message} Invoice INV-${String(data.data.invoice_id).padStart(6, "0")}.`); await loadTable(); }
+      if (!request.signal.aborted) { setOpen(false); setSuccess(`${data.message} Invoice ${data.data.invoice_number}.`); await loadTable(); }
     } catch (error) { if (!request.signal.aborted) showErrors(error); }
     finally { if (formRequest.current === request) formRequest.current = null; if (!request.signal.aborted) setBusy(false); }
   }
@@ -123,13 +123,13 @@ export default function Return() {
       {pageError && <div role="alert" className="form-alert mb-5">{pageError} <button type="button" onClick={loadTable} className="underline">Reload returns</button></div>}
       {success && <div role="status" className="mb-5 rounded-lg border border-border bg-[var(--info-soft)] px-4 py-3 text-sm text-primary">{success}</div>}
       <PermissionGate permission="returns.assess"><button type="button" className="btn-primary management-add mb-6" disabled={busy} onClick={() => void openForm()}><Plus size={16} className="mr-2" />New Return Assessment</button></PermissionGate>
-      <CustomDrawer canSubmit={can("returns.assess")} open={open} setOpen={(next) => { if (!formRequest.current) setOpen(next); }} saving={busy} title={record ? `Return Assessment ${record.ID}` : "Return Assessment"} description="All amounts are calculated on the backend. The receiving account and review history are preserved." submitText={readonly ? "Close" : busy ? "Saving..." : "Save Assessment"} onSubmit={(event) => readonly ? setOpen(false) : handleSubmit(save)(event)} size="max-w-3xl">
+      <CustomDrawer canSubmit={can("returns.assess")} open={open} setOpen={(next) => { if (!formRequest.current) setOpen(next); }} saving={busy} title={record ? `Return Assessment · ${record.rental_number}` : "Return Assessment"} description="All amounts are calculated on the backend. The receiving account and review history are preserved." submitText={readonly ? "Close" : busy ? "Saving..." : "Save Assessment"} onSubmit={(event) => readonly ? setOpen(false) : handleSubmit(save)(event)} size="max-w-3xl">
         {formError && <div role="alert" className="form-alert mb-4">{formError}</div>}
         {busy && <p role="status" className="mb-4 text-sm">Processing return assessment...</p>}
         <FormProvider {...methods}><form noValidate onSubmit={(event) => handleSubmit(save)(event)}><fieldset disabled={busy || readonly} className="m-0 min-w-0 space-y-5 border-0 p-0">
           <FormSection title="Rental and pickup condition">
             {!record && <><label htmlFor="rental_id" className="mb-2 block text-sm font-semibold">Active rental *</label><Select2 name="rental_id" endpoint="/return_rental_filter" rules={required("Rental")} onValueChange={(id) => void selectRental(id)} /></>}
-            {rental && <div className="mt-3 rounded-lg bg-secondary/40 p-4 text-sm"><p className="font-semibold">RNT-{String(rental.ID).padStart(6, "0")} · {rental.rental_snapshot.customer.name} · {rental.rental_snapshot.vehicle.number}</p><p>Pickup: {rental.actual_pickup_at} · Expected return: {rental.rental_snapshot.expected_return_at}</p><p>Starting odometer: {rental.starting_odometer} km · Pickup fuel: {rental.pickup_fuel_litres} litres</p><p>Pickup condition: {rental.condition_notes}</p><p>Existing damage: {rental.existing_damage || "None recorded"}</p></div>}
+            {rental && <div className="mt-3 rounded-lg bg-secondary/40 p-4 text-sm"><p className="font-semibold">{rental.rental_number} · {rental.rental_snapshot.customer.name} · {rental.rental_snapshot.vehicle.number}</p><p>Pickup: {rental.actual_pickup_at} · Expected return: {rental.rental_snapshot.expected_return_at}</p><p>Starting odometer: {rental.starting_odometer} km · Pickup fuel: {rental.pickup_fuel_litres} litres</p><p>Pickup condition: {rental.condition_notes}</p><p>Existing damage: {rental.existing_damage || "None recorded"}</p></div>}
           </FormSection>
           <FormSection title="Return inspection"><div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {field("actual_return_at", "Actual return date and time *", <Input id="actual_return_at" type="datetime-local" {...register("actual_return_at", required("Actual return time"))} />)}
@@ -157,10 +157,10 @@ export default function Return() {
             {[["review_approved", "I reviewed the rental, evidence, calculations and original payment records."], ["damage_approved", "I approve the documented damage charge, if proposed."], ["deposit_deduction_approved", "I authorize the proposed deposit deduction, if any."], ["vehicle_release_approved", "I inspected and approve making the vehicle Available, if selected."]].map(([name, label]) => <div key={name}><label className="flex items-start gap-2 text-sm"><input type="checkbox" {...review.register(name, name === "review_approved" ? required("Staff review") : {})} />{label}</label><FieldError name={name} errors={review.formState.errors} /></div>)}
             <button type="submit" className="btn-primary" disabled={busy || isDirty || photos.length > 0 || !!record.calculation.blockers?.length}>Finalize Reviewed Return</button>
           </div></FormSection></form></FormProvider>}
-          {record?.photos?.length > 0 && <FormSection title="Pickup and return photo evidence"><div className="flex flex-wrap gap-3">{record.photos.map((photo) => <button type="button" key={photo.ID} className="btn-primary" onClick={async () => {
+          {record?.photos?.length > 0 && <FormSection title="Pickup and return photo evidence"><div className="flex flex-wrap gap-3">{record.photos.map((photo, index) => <button type="button" key={photo.ID} className="btn-primary" onClick={async () => {
             try { const { data } = await axiosClient.get(`/rental_photos/${photo.ID}`, { responseType: "blob" }); const url = URL.createObjectURL(data), link = document.createElement("a"); link.href = url; link.download = `condition-${photo.ID}.${data.type.split("/")[1] || "jpg"}`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 10000); } catch { setFormError("Unable to download the condition photo."); }
-          }}>{photo.stage} photo {photo.ID}</button>)}</div></FormSection>}
-          {record?.audit?.length > 0 && <FormSection title="Assessment audit trail">{record.audit.map((entry) => <p key={entry.ID} className="text-sm">Revision {entry.revision} · {entry.action} · Account {entry.recorded_by} · {entry.created_at}</p>)}</FormSection>}
+          }}>{photo.stage} photo {index + 1}</button>)}</div></FormSection>}
+          {record?.audit?.length > 0 && <FormSection title="Assessment audit trail">{record.audit.map((entry) => <p key={entry.ID} className="text-sm">Revision {entry.revision} · {entry.action} · {entry.recorded_by_name} · {entry.created_at}</p>)}</FormSection>}
         </div>
       </CustomDrawer>
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"><div className="border-b px-6 py-5"><h2 className="text-base font-semibold">Return Assessments</h2></div><div id="return-tb" className="relative p-6" aria-busy={loading}><NativeSelect aria-label="Return status filter" defaultValue="" onChange={(event) => { statusFilter.current = event.target.value; void loadTable(); }}><option value="">All assessment statuses</option>{["Draft Assessment", "Pending Review", "Finalized"].map((status) => <option key={status} value={status}>{status}</option>)}</NativeSelect><TableSearch table={table} /><div ref={tableElement} className="overflow-hidden rounded-xl border border-border" /></div></div>

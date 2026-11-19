@@ -1,3 +1,5 @@
+import { formatMoney, formatNumber } from "@/lib/display-values.mjs";
+import { statusColumn } from "@/lib/status-column";
 import usePermissions from "@/hooks/usePermissions";
 import PermissionGate from "@/components/PermissionGate";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -392,7 +394,7 @@ export default function RentalPackage() {
           field: "rate_per_unit",
           minWidth: 135,
           hozAlign: "right",
-          formatter: (cell) => currency.format(Number(cell.getValue())),
+          formatter: (cell) => formatMoney(cell.getValue()),
         },
         {
           title: "Km / Unit",
@@ -401,25 +403,16 @@ export default function RentalPackage() {
           formatter: (cell) =>
             cell.getValue() == null
               ? "Unlimited"
-              : String(Number(cell.getValue())),
+              : formatNumber(cell.getValue()),
         },
         {
           title: "Deposit",
           field: "security_deposit",
           minWidth: 135,
           hozAlign: "right",
-          formatter: (cell) => currency.format(Number(cell.getValue())),
+          formatter: (cell) => formatMoney(cell.getValue()),
         },
-        {
-          title: "Status",
-          field: "status",
-          width: 105,
-          hozAlign: "center",
-          formatter: (cell) =>
-            Number(cell.getValue()) === 1
-              ? '<span class="rounded-full bg-[var(--success-soft)] px-3 py-1 text-xs font-medium text-[var(--success)]">Active</span>'
-              : '<span class="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-muted-foreground">Inactive</span>',
-        },
+        statusColumn("rental_packages", can("rental_packages.edit")),
         {
           title: "Actions",
           field: "id",
@@ -471,7 +464,7 @@ export default function RentalPackage() {
     const payload = {
       ...values,
       package_name: values.package_name.trim(),
-      vehicle_id: Number(values.vehicle_id),
+      vehicle_id: values.vehicle_id,
       included_km_per_unit: hasUnlimitedKm
         ? null
         : Number(values.included_km_per_unit),

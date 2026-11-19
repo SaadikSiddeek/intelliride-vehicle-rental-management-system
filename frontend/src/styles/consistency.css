@@ -9,3 +9,20 @@
 @media(max-width:640px){.management-page .management-add{max-width:100%}.management-page .page-container>.management-add{margin-bottom:16px}}
 
 .business-form .avatar{width:96px;height:96px;font-size:26px;border-radius:50%;display:grid;place-items:center}
+
+/* Shared native status controls follow the active application theme. */
+.record-status-switch{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:4px 6px;border-radius:6px;font-size:12px;color:var(--muted-foreground);white-space:nowrap}
+.record-status-switch:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.record-status-switch:disabled{cursor:default;opacity:.65}
+.record-status-track{width:30px;height:18px;border-radius:99px;background:var(--muted);position:relative;flex-shrink:0;transition:background .15s}
+.record-status-track:after{content:"";position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:50%;background:var(--foreground);transition:transform .15s}
+.record-status-switch[aria-checked="true"]{color:var(--success)}
+.record-status-switch[aria-checked="true"] .record-status-track{background:var(--success-soft)}
+.record-status-switch[aria-checked="true"] .record-status-track:after{background:var(--success);transform:translateX(12px)}
+.record-status-switch[aria-busy="true"]{opacity:.65;cursor:wait}
+.management-filter-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:18px;min-width:0}
+.management-filter-row>select{flex:0 1 210px;width:210px;max-width:100%}
+.management-page .management-filter-row .table-toolbar{flex:1 1 290px;min-width:0;margin:0}
+.management-filter-row .record-search{min-width:0;flex:1 1 180px}
+@media(max-width:600px){.management-filter-row>select{flex:1 1 100%;width:100%}.management-page .management-filter-row .table-toolbar{flex-basis:100%;width:100%}}
+@media(prefers-reduced-motion:reduce){.record-status-track,.record-status-track:after{transition:none}}

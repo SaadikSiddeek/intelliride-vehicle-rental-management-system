@@ -1,0 +1,1 @@
+export default function TypingIndicator(){return <div className="assistant-progress" role="status"><span>Assistant is thinking</span><span className="chat-typing-dots" aria-hidden="true"><i/><i/><i/></span></div>;}

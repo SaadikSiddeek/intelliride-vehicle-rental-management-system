@@ -231,3 +231,17 @@
 @media(max-width:420px){.hero-copy h1{font-size:38px;}.site-container{width:calc(100% - 32px);}.hero-copy .site-kicker{font-size:.47rem;}.driving-scene{height:295px;}.feature-grid{grid-template-columns:1fr;}.feature-card{padding:23px;}.feature-card h3{font-size:1rem;}.feature-top>span:last-child{font-size:.5rem;}.hero-actions{gap:19px;}.hero-note{font-size:.55rem;gap:12px;}.hero-scene-heading{font-size:.44rem;}.preview-window-bar{padding:11px 13px;font-size:.59rem;}.preview-mode-label{font-size:.49rem;}.site h2{font-size:29px;}.product-demo{padding:12px;}.scene-bottom>span{font-size:.43rem;}.explorer-toolbar button{font-size:.56rem;padding:7px;}}
 .scene-bottom button {order:-1;}
 .scene-bottom>span {margin-left:auto;}
+
+/* Focused proportions: keep FAQs readable without a fixed-height scroll region. */
+#platform.site-section{padding-block:56px}
+#platform .section-intro{margin-bottom:25px}
+#platform .section-intro h2{font-size:clamp(28px,3vw,38px)}
+#platform .section-intro>p{margin-top:14px}
+.faq-section{grid-template-columns:minmax(180px,.65fr) minmax(0,2fr);gap:40px}
+.faq-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:30px;align-items:start}
+.faq-list details{border-top:1px solid var(--border);border-bottom:0;min-width:0}
+.faq-list summary{padding:15px 0;gap:12px;min-height:60px;line-height:1.6}
+.faq-list p{padding-bottom:16px;line-height:1.75}
+@media(max-width:960px){.faq-section{grid-template-columns:1fr;gap:24px}.faq-list{grid-template-columns:1fr}.faq-section>div>p{max-width:480px}}
+
+.assistant-composer textarea{flex:1;min-width:0;max-height:120px;resize:none;background:transparent;border:0;outline:none;font:inherit;line-height:1.5;padding:8px;color:inherit}.chat-typing-dots{display:inline-flex;gap:4px;margin-left:8px}.chat-typing-dots i{width:5px;height:5px;border-radius:50%;background:currentColor;animation:chat-dot 1s infinite}.chat-typing-dots i:nth-child(2){animation-delay:.15s}.chat-typing-dots i:nth-child(3){animation-delay:.3s}@keyframes chat-dot{50%{opacity:.25;transform:translateY(-3px)}}@media(prefers-reduced-motion:reduce){.chat-typing-dots i{animation:none}}

@@ -1,3 +1,5 @@
+import { formatMoney } from "@/lib/display-values.mjs";
+import { suggestedHandoverPickup } from "@/lib/handover-context.mjs";
 import PermissionGate from "@/components/PermissionGate";
 import useRecordLink from "@/hooks/useRecordLink";
 import { tableAction } from "@/lib/table-actions";
@@ -35,10 +37,6 @@ const EMPTY = {
   deposit_method: "cash",
   deposit_reference: "",
 };
-const money = new Intl.NumberFormat("en-LK", {
-  style: "currency",
-  currency: "LKR",
-});
 
 function PhotoPreview({ file }) {
   const ref = useRef(null);
@@ -63,7 +61,6 @@ function PhotoPreview({ file }) {
 
 export default function ActiveRental() {
   const methods = useForm({ defaultValues: EMPTY });
-  const filterMethods = useForm({ defaultValues: { filter_branch: "" } });
   const {
     register,
     handleSubmit,
@@ -215,6 +212,8 @@ export default function ActiveRental() {
   async function selectBooking(id) {
     contextRequest.current?.abort();
     setContext(null);
+    clearErrors(["booking_id", "actual_pickup_at", "deposit_received"]);
+    setValue("actual_pickup_at", "");
     setValue("deposit_received", "");
     setFormError("");
     if (!id) {
@@ -232,6 +231,8 @@ export default function ActiveRental() {
       );
       if (!request.signal.aborted) {
         setContext(data.data);
+        const suggestedPickup = suggestedHandoverPickup(data.data);
+        setValue("actual_pickup_at", suggestedPickup, { shouldValidate: Boolean(suggestedPickup) });
         setValue("starting_odometer", String(data.data.mileage || 0));
         setValue(
           "deposit_received",
@@ -255,6 +256,12 @@ export default function ActiveRental() {
     setBusy(true);
     setFormError("");
     clearErrors();
+    if (!context || contextLoading || context.handover_not_started) {
+      setBusy(false);
+      formRequest.current = null;
+      setFormError(context?.handover_notice || "Load an eligible confirmed booking before activating a rental.");
+      return;
+    }
     const payload = new FormData();
     Object.keys(EMPTY).forEach((key) =>
       payload.append(
@@ -382,9 +389,10 @@ export default function ActiveRental() {
               }
             }}
             saving={busy || contextLoading}
+            submitDisabled={!record && (!context || context.handover_not_started)}
             title={
               record
-                ? `Rental RNT-${String(record.ID).padStart(6, "0")}`
+                ? `Rental ${record.rental_number}`
                 : "Vehicle Handover"
             }
             description="The signed-in account is recorded as responsible for this handover. Times are in Asia/Colombo."
@@ -406,6 +414,7 @@ export default function ActiveRental() {
                 Loading handover details...
               </p>
             )}
+            {!record && context && <div role="status" className="mb-4 rounded-lg border border-border bg-muted/30 p-4 text-sm"><p>{context.handover_notice || `Server time: ${context.server_now?.replace("T", " ")} ${context.rental_timezone}. Pickup window: ${context.pickup_min?.replace("T", " ")} to ${context.pickup_max?.replace("T", " ")}.`}</p><button type="button" className="btn-secondary mt-3" disabled={busy || contextLoading} onClick={() => void selectBooking(methods.getValues("booking_id"))}>Refresh eligibility</button></div>}
             {record && (
               <div className="mb-5 rounded-lg bg-secondary p-4 text-sm">
                 <p>
@@ -449,7 +458,7 @@ export default function ActiveRental() {
                             ["Expected return", context.expected_return_at],
                             [
                               "Agreed deposit",
-                              money.format(
+                              formatMoney(
                                 context.pricing_snapshot.security_deposit,
                               ),
                             ],
@@ -534,6 +543,7 @@ export default function ActiveRental() {
                     </div>
                   </FormSection>
                   <FormSection title="Pickup inspection">
+                    <p className="mb-4 text-sm text-muted-foreground">Enter the actual pickup time in {context?.rental_timezone || "Asia/Colombo"}, even if your device uses another timezone. Pickup must be at or after reserved pickup, before expected return, and no later than the current time.</p>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       {field(
                         "actual_pickup_at",
@@ -541,9 +551,12 @@ export default function ActiveRental() {
                         <Input
                           id="actual_pickup_at"
                           type="datetime-local"
+                          min={context && !context.handover_not_started ? context.pickup_min : undefined}
+                          max={context && !context.handover_not_started ? context.pickup_max : undefined}
+                          disabled={!!context?.handover_not_started}
                           {...register(
                             "actual_pickup_at",
-                            required("Actual pickup time"),
+                            { ...required("Actual pickup time"), onChange: () => clearErrors("actual_pickup_at") },
                           )}
                         />,
                       )}
@@ -741,7 +754,7 @@ export default function ActiveRental() {
             {record?.photos?.length > 0 && (
               <FormSection title="Private condition photos">
                 <div className="flex flex-wrap gap-3">
-                  {record.photos.map((photo) => (
+                  {record.photos.map((photo, index) => (
                     <button
                       key={photo.ID}
                       type="button"
@@ -749,7 +762,7 @@ export default function ActiveRental() {
                       onClick={() => void downloadPhoto(photo.ID)}
                     >
                       <Download size={14} className="mr-2" />
-                      {photo.stage} photo {photo.ID}
+                      {photo.stage} photo {index + 1}
                     </button>
                   ))}
                 </div>
@@ -759,7 +772,7 @@ export default function ActiveRental() {
               <FormSection title="Deposit history">
                 {record.deposits.map((entry) => (
                   <p key={entry.ID} className="text-sm">
-                    {entry.entry_type}: {money.format(entry.amount)} ·{" "}
+                    {entry.entry_type}: {formatMoney(entry.amount)} ·{" "}
                     {entry.method || "Account settlement"} ·{" "}
                     {entry.reference || "No reference"}
                   </p>
@@ -789,17 +802,6 @@ export default function ActiveRental() {
                   <option value="Active">Active</option>
                   <option value="Completed">Completed</option>
                 </NativeSelect>
-                <FormProvider {...filterMethods}>
-                  <Select2
-                    name="filter_branch"
-                    endpoint="/branch_filter"
-                    placeholder="All pickup branches"
-                    onValueChange={(id) => {
-                      filters.current.branch_id = id || "";
-                      void loadTable();
-                    }}
-                  />
-                </FormProvider>
               </div>
               <TableSearch table={table} />
               <div

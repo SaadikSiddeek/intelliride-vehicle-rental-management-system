@@ -13,7 +13,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->api(append: [\App\Http\Middleware\EncryptedIdentifiers::class]);
         $middleware->alias([
+            'installation.branch' => \App\Http\Middleware\SingleInstallationBranch::class,
             'permissions' => \App\Http\Middleware\EnforcePermissions::class,
             'active.account' => \App\Http\Middleware\RequireActiveAccount::class,
             'administration' => \App\Http\Middleware\RequireAdministration::class,

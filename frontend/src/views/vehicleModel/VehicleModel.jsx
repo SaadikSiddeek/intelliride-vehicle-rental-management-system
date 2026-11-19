@@ -1,3 +1,4 @@
+import { statusColumn } from "@/lib/status-column";
 import usePermissions from "@/hooks/usePermissions";
 import PermissionGate from "@/components/PermissionGate";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -224,12 +225,12 @@ export default function VehicleModel() {
     setSaving(true);
 
     const payload = {
-      brand: Number(values.brand),
+      brand: values.brand,
       model_name: values.model_name.trim(),
       year: values.year === "" ? null : Number(values.year),
       engine_capacity: values.engine_capacity.trim() || null,
-      fuel_type: Number(values.fuel_type),
-      transmission: Number(values.transmission),
+      fuel_type: values.fuel_type,
+      transmission: values.transmission,
       status: values.status ? 1 : 0,
     };
 
@@ -364,16 +365,7 @@ export default function VehicleModel() {
           formatter: "plaintext",
           width: 140,
         },
-        {
-          title: "Status",
-          field: "status",
-          hozAlign: "center",
-          width: 110,
-          formatter: (cell) =>
-            Number(cell.getValue()) === 1
-              ? `<span class="rounded-full bg-[var(--success-soft)] px-3 py-1 text-xs font-medium text-[var(--success)]">Active</span>`
-              : `<span class="rounded-full bg-[var(--danger-soft)] px-3 py-1 text-xs font-medium text-destructive">Inactive</span>`,
-        },
+        statusColumn("models", can("models.edit")),
         {
           title: "Actions",
           field: "id",

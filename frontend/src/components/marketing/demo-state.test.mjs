@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createDemoState,saveDemoBooking,availableDemoVehicles,demoMetrics,selectDemoBookings} from './demo-state.mjs';
+const booking={customer_id:'1',vehicle_id:'5',pickup_at:'2026-06-23T10:00',expected_return_at:'2026-06-24T10:00',status:'Confirmed',notes:'Demo only'};
+test('demo metrics reconcile the actual synthetic ledgers',()=>{assert.deepEqual(demoMetrics(createDemoState()),{fleet:5,available:3,active:1,upcoming:1,revenue:12000,collections:4000,outstanding:8000,deposits:20000});});
+test('demo save and reset stay in memory and do not mutate the source',()=>{const old=createDemoState(),next=saveDemoBooking(old,booking);assert.equal(old.bookings.length,3);assert.equal(next.bookings.length,4);assert.equal(next.bookings.at(-1).total,5500);assert.equal(createDemoState().bookings.length,3);});
+test('demo reserves confirmed bookings and rejects overlapping confirmations',()=>{const state=saveDemoBooking(createDemoState(),booking);assert.throws(()=>saveDemoBooking(state,booking),/reserved/);assert.ok(!availableDemoVehicles(state,booking.pickup_at,booking.expected_return_at).some(v=>v.id===5));});
+test('drafts remain editable without duplicating records; completed records are locked',()=>{let state=saveDemoBooking(createDemoState(),{...booking,status:'Draft'});state=saveDemoBooking(state,{...booking,id:4,status:'Draft',notes:'Updated'});assert.equal(state.bookings.length,4);assert.equal(state.bookings.at(-1).notes,'Updated');assert.throws(()=>saveDemoBooking(state,{...booking,id:1}),/Only draft/);});
+test('invalid dates and unavailable vehicles are rejected',()=>{assert.throws(()=>saveDemoBooking(createDemoState(),{...booking,expected_return_at:booking.pickup_at}),/after/);assert.throws(()=>saveDemoBooking(createDemoState(),{...booking,vehicle_id:3}),/available/);});
+test('display search and status filters compose',()=>{assert.equal(selectDemoBookings(createDemoState(),{query:'Noah',status:'Confirmed'}).length,1);assert.equal(selectDemoBookings(createDemoState(),{query:'DEMO-1234',status:'Confirmed'}).length,0);});

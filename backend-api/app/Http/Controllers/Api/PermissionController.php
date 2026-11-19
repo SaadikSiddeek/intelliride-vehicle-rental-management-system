@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\ActorDisplay;
 use App\Services\PermissionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -135,6 +136,15 @@ class PermissionController extends Controller
     public function audit(Request $r)
     {
         abort_unless($r->user()->user_type === 'super_admin', 403);
-        return response()->json(['status' => true, 'data' => DB::table('authorization_audit_tb')->orderByDesc('ID')->paginate(50)]);
+        $page = DB::table('authorization_audit_tb')->orderByDesc('ID')->paginate(50);
+        $rows = $page->getCollection();
+        $names = ActorDisplay::names($rows->pluck('actor_user_id')->merge($rows->pluck('target_user_id')));
+        $page->through(function ($row) use ($names) {
+            $row->actor_name = ActorDisplay::label($row->actor_user_id, $names, 'Installation console');
+            $row->target_name = ActorDisplay::label($row->target_user_id, $names, $row->action === 'role_permissions_changed' ? 'Role template' : 'Not applicable');
+            return $row;
+        });
+
+        return response()->json(['status' => true, 'data' => $page]);
     }
 }

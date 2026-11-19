@@ -9,7 +9,10 @@ export function DatePicker({ value, onValueChange, onChange, onBlur, type = "dat
   const input = useRef(null), picker = useRef(null);
   const changed = useEffectEvent((dates, dateString, instance) => {
     onValueChange?.(range ? dates.map(date => instance.formatDate(date, "Y-m-d")) : dateString);
-    onChange?.({ target: instance.input, type: "change" });
+    // Snapshot the selected value. Flatpickr mutates the DOM and RHF must not
+    // re-read a stale registered DOM ref when a drawer/picker is recreated.
+    const target = { name: instance.input.name, value: dateString };
+    onChange?.({ target, currentTarget: target, type: "change" });
   });
   const blurred = useEffectEvent(instance => onBlur?.({ target: instance.input, type: "blur" }));
   const bindField = useEffectEvent(node => {
@@ -69,7 +72,10 @@ export function DatePicker({ value, onValueChange, onChange, onBlur, type = "dat
 }
 function RegisteredDateInput({ methods, ...props }) {
   const value = useWatch({ control: methods.control, name: props.name });
-  return <DatePicker {...props} value={value ?? ""} />;
+  return <DatePicker {...props} value={value ?? ""} onValueChange={next => {
+    methods.setValue(props.name, next, { shouldDirty: true, shouldValidate: true });
+    props.onValueChange?.(next);
+  }} />;
 }
 export default function DateInput(props) {
   const methods = useFormContext();

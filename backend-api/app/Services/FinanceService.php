@@ -16,7 +16,7 @@ class FinanceService
         $balance = max(0, $total - $settled);
         $held = app(ReturnService::class)->depositBalance($invoice->rental_id);
 
-        return ['invoice_id' => $invoice->ID, 'invoice_number' => 'INV-'.str_pad($invoice->ID, 6, '0', STR_PAD_LEFT), 'total' => BookingService::money($total), 'booking_advances' => BookingService::money($advance), 'additional_payments' => BookingService::money($additional), 'cash_received' => BookingService::money($advance + $additional), 'deposit_applied' => BookingService::money($deposit), 'settled' => BookingService::money($settled), 'balance' => BookingService::money($balance), 'payment_status' => $balance === 0 ? 'Paid' : ($settled === 0 ? 'Unpaid' : 'Partially Paid'), 'deposit_received' => BookingService::money($held['Received']), 'deposit_refunded' => BookingService::money($held['Refunded']), 'deposit_held' => BookingService::money(max(0, $held['Held']))];
+        return ['invoice_id' => $invoice->ID, 'invoice_number' => \App\Services\CodeGenerator::reference('invoice', $invoice->ID), 'total' => BookingService::money($total), 'booking_advances' => BookingService::money($advance), 'additional_payments' => BookingService::money($additional), 'cash_received' => BookingService::money($advance + $additional), 'deposit_applied' => BookingService::money($deposit), 'settled' => BookingService::money($settled), 'balance' => BookingService::money($balance), 'payment_status' => $balance === 0 ? 'Paid' : ($settled === 0 ? 'Unpaid' : 'Partially Paid'), 'deposit_received' => BookingService::money($held['Received']), 'deposit_refunded' => BookingService::money($held['Refunded']), 'deposit_held' => BookingService::money(max(0, $held['Held']))];
     }
 
     public function syncBooking(int $invoiceId): void

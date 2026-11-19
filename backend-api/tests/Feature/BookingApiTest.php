@@ -99,7 +99,7 @@ test('invalid advances and payment references roll back booking creation', funct
 });
 
 test('dates same branch active customers and package linkage are enforced', function () {
-    $this->postJson('/api/save_booking', bookingPayload(['expected_return_at' => '2026-11-01T10:00', 'return_branch_id' => 2]))->assertUnprocessable()->assertJsonValidationErrors(['expected_return_at', 'return_branch_id']);
+    $this->postJson('/api/save_booking', bookingPayload(['expected_return_at' => '2026-11-01T10:00', 'return_branch_id' => 2]))->assertUnprocessable()->assertJsonValidationErrors(['expected_return_at']);
     $this->postJson('/api/save_booking', bookingPayload(['status' => 'Confirmed', 'pickup_at' => '2026-11-01T10:00']))->assertUnprocessable()->assertJsonValidationErrors('pickup_at');
     DB::table('customer_tb')->update(['status' => 'Blocked']);
     $this->postJson('/api/save_booking', bookingPayload())->assertUnprocessable()->assertJsonValidationErrors('customer_id');
@@ -128,4 +128,50 @@ test('unlimited mileage and minimum weekly units are snapshotted correctly', fun
     DB::table('rental_package_tb')->update(['billing_unit' => 'week', 'minimum_units' => 2, 'included_km_per_unit' => null, 'extra_km_charge' => 0]);
     $this->postJson('/api/quote_booking', bookingPayload())->assertOk()->assertJsonPath('data.units', 2)->assertJsonPath('data.included_km', null)->assertJsonPath('data.total', '16001.00');
     expect(BookingService::money(BookingService::cents('0.01')))->toBe('0.01');
+});
+
+it('loads vehicle availability without a client branch and excludes its own reservation preview',function(){
+ $period=['pickup_at'=>'2026-12-01T10:00','expected_return_at'=>'2026-12-02T10:00'];
+ $this->postJson('/api/booking_vehicle_filter',$period)->assertOk()->assertJsonCount(1,'data');
+ $id=$this->postJson('/api/save_booking',bookingPayload(['status'=>'Confirmed']))->assertCreated()->json('data.ID');
+ $this->postJson('/api/booking_vehicle_filter',$period)->assertOk()->assertJsonCount(0,'data');
+ $this->postJson('/api/booking_vehicle_filter',[...$period,'exclude_booking_id'=>$id])->assertOk()->assertJsonCount(1,'data');
+ $this->postJson('/api/save_booking',bookingPayload(['status'=>'Confirmed']))->assertUnprocessable();
+});
+
+it('offers available vehicles regardless of historical branch and ignores branch selectors', function () {
+    (require database_path('migrations/2026_11_18_120000_create_installation_settings.php'))->up();
+    DB::table('installation_settings_tb')->where('ID', 1)->update(['branch_id' => 1]);
+    DB::table('branch_tb')->insert(['ID' => 2, 'branch_name' => 'Historical', 'branch_code' => 'HIST', 'status' => false]);
+    DB::table('vehicle_tb')->where('ID', 1)->update(['branch_id' => 2]);
+    $period = ['pickup_at' => '2026-12-01T10:00', 'expected_return_at' => '2026-12-02T10:00'];
+    $this->postJson('/api/booking_vehicle_filter', $period)->assertOk()->assertJsonCount(1, 'data');
+    $this->postJson('/api/booking_vehicle_filter', [...$period, 'pickup_branch_id' => 999])->assertOk()->assertJsonCount(1, 'data');
+    $payload = bookingPayload(['status' => 'Confirmed']);
+    unset($payload['pickup_branch_id'], $payload['return_branch_id']);
+    $id = $this->postJson('/api/save_booking', $payload)->assertCreated()->json('data.ID');
+    expect((int) DB::table('booking_tb')->where('ID', $id)->value('pickup_branch_id'))->toBe(1);
+    expect((int) DB::table('vehicle_tb')->where('ID', 1)->value('branch_id'))->toBe(2);
+    $this->postJson('/api/booking_vehicle_filter', $period)->assertOk()->assertJsonCount(0, 'data');
+});
+
+test('saved draft confirmation and retry preserve prices without dispatching mail or jobs', function () {
+    \Illuminate\Support\Facades\Queue::fake();
+    \Illuminate\Support\Facades\Mail::fake();
+    \Illuminate\Support\Facades\Notification::fake();
+    $id = $this->postJson('/api/save_booking', bookingPayload())->assertCreated()->json('data.ID');
+    $pricing = DB::table('booking_tb')->where('ID', $id)->value('pricing_snapshot');
+    $this->postJson('/api/booking_status', ['upd_id' => $id, 'status' => 'Confirmed'])->assertOk();
+    $this->postJson('/api/booking_status', ['upd_id' => $id, 'status' => 'Confirmed'])->assertOk();
+    expect(DB::table('booking_tb')->where('ID', $id)->value('pricing_snapshot'))->toBe($pricing);
+    expect(DB::table('booking_tb')->count())->toBe(1);
+    \Illuminate\Support\Facades\Queue::assertNothingPushed();
+    \Illuminate\Support\Facades\Mail::assertNothingSent();
+    \Illuminate\Support\Facades\Notification::assertNothingSent();
+});
+test('an overlapping draft cannot be confirmed after email removal', function () {
+    $id = $this->postJson('/api/save_booking', bookingPayload())->assertCreated()->json('data.ID');
+    $this->postJson('/api/save_booking', bookingPayload(['status' => 'Confirmed']))->assertCreated();
+    $this->postJson('/api/booking_status', ['upd_id' => $id, 'status' => 'Confirmed'])->assertUnprocessable();
+    expect(DB::table('booking_tb')->where('ID', $id)->value('status'))->toBe('Draft');
 });

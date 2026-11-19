@@ -1,3 +1,4 @@
+import { vehicleModelDefaults } from "@/lib/vehicle-model-defaults.mjs";
 import usePermissions from "@/hooks/usePermissions";
 import PermissionGate from "@/components/PermissionGate";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -161,6 +162,7 @@ export default function VehicleRegistration() {
   const { can } = usePermissions();
   const [openDrawer, setOpenDrawer] = useState(false);
   const [updateId, setUpdateId] = useState("");
+  const [historicalReadOnly, setHistoricalReadOnly] = useState(false);
   const [options, setOptions] = useState(EMPTY_OPTIONS);
 
   const [tableLoading, setTableLoading] = useState(false);
@@ -209,6 +211,7 @@ export default function VehicleRegistration() {
 
   const isEditing = updateId !== "";
   const isBusy = saving || formLoading;
+  const controlsDisabled = isBusy || historicalReadOnly;
   const maxYear = new Date().getFullYear() + 1;
 
   // Sets (or clears) the error banner shown at the top of the form.
@@ -323,6 +326,7 @@ export default function VehicleRegistration() {
   // ================= OPEN CREATE FORM =================
 
   const openCreateDrawer = () => {
+    setHistoricalReadOnly(false);
     if (requestBusy.current) return;
 
     reset({ ...EMPTY_FORM });
@@ -367,6 +371,7 @@ export default function VehicleRegistration() {
         }
 
         const vehicle = data.data;
+        setHistoricalReadOnly(Boolean(vehicle.is_historical_branch));
 
         reset(
           Object.fromEntries(
@@ -633,6 +638,7 @@ export default function VehicleRegistration() {
   // would keep them and silently block every later submit, so clear them
   // first. The server re-validates both anyway.
   const submitForm = (event) => {
+    if (historicalReadOnly) { event?.preventDefault(); return; }
     clearErrors(["images", "features"]);
 
     return handleSubmit(saveVehicle, onInvalid)(event);
@@ -670,6 +676,7 @@ export default function VehicleRegistration() {
           frozen: true,
           width: 160,
         },
+        { title: "Record scope", field: "record_scope", formatter: "plaintext", width: 160 },
         { title: "Brand", field: "brand", formatter: "plaintext", width: 130 },
         { title: "Model", field: "model", formatter: "plaintext", width: 140 },
         {
@@ -732,12 +739,12 @@ export default function VehicleRegistration() {
           width: 100,
           headerSort: false,
           hozAlign: "center",
-          formatter: () => can("vehicles.edit") ? (`
+          formatter: (cell) => can("vehicles.edit") || (cell.getRow().getData().is_historical_branch && can("vehicles.view")) ? (`
             <button
               type="button"
               class="table-action-btn"
-              aria-label="Edit vehicle"
-              title="Edit vehicle"
+              aria-label="${cell.getRow().getData().is_historical_branch ? "View historical vehicle" : "Edit vehicle"}"
+              title="${cell.getRow().getData().is_historical_branch ? "View historical vehicle" : "Edit vehicle"}"
             >
               <svg
                 aria-hidden="true"
@@ -841,12 +848,12 @@ export default function VehicleRegistration() {
               Add Vehicle
             </button></PermissionGate>
 
-            <CustomDrawer canSubmit={can("vehicles.create") && !isEditing || can("vehicles.edit") && isEditing}
+            <CustomDrawer canSubmit={!historicalReadOnly && (can("vehicles.create") && !isEditing || can("vehicles.edit") && isEditing)}
               open={openDrawer}
               setOpen={handleDrawerChange}
               saving={isBusy}
-              title={isEditing ? "Update Vehicle" : "Register Vehicle"}
-              description="Manage vehicle details, features and photographs."
+              title={historicalReadOnly ? "Historical vehicle — read only" : isEditing ? "Update Vehicle" : "Register Vehicle"}
+              description={historicalReadOnly ? "This record remains in its original branch. It has not been moved to the installation branch." : "Manage vehicle details, features and photographs."}
               submitText={submitText}
               onSubmit={submitForm}
               size="max-w-3xl"
@@ -879,7 +886,7 @@ export default function VehicleRegistration() {
               <FormProvider {...methods}>
                 <form noValidate aria-busy={isBusy} onSubmit={submitForm}>
                   <fieldset
-                    disabled={isBusy}
+                    disabled={controlsDisabled}
                     className="m-0 min-w-0 space-y-7 border-0 p-0"
                   >
                     <section>
@@ -927,7 +934,7 @@ export default function VehicleRegistration() {
                             name="category"
                             endpoint="/vehciel_category_filter"
                             placeholder="Select category..."
-                            disabled={isBusy}
+                            disabled={controlsDisabled}
                             rules={{ required: "Please select a category." }}
                           />
 
@@ -942,9 +949,10 @@ export default function VehicleRegistration() {
                           </label>
                           <Select2
                             name="brand"
+                            onValueChange={() => { setValue("model", "", { shouldDirty: true }); for (const field of ["manufacture_year", "fuel_type", "transmission"]) setValue(field, "", { shouldDirty: true }); clearErrors(["model", "manufacture_year", "fuel_type", "transmission"]); }}
                             endpoint="/brand_filter"
                             placeholder="Select brand..."
-                            disabled={isBusy}
+                            disabled={controlsDisabled}
                             rules={{ required: "Please select a brand." }}
                           />
                           <FieldError errors={errors} name="brand" />
@@ -959,9 +967,10 @@ export default function VehicleRegistration() {
 
                           <Select2
                             name="model"
-                            endpoint="/model_filter"
-                            placeholder="Select model..."
-                            disabled={isBusy}
+                            endpoint={`/model_filter?brand_id=${encodeURIComponent(selectedBrand || "")}`}
+                            onValueChange={id => { const defaults = vehicleModelDefaults(options.models, id, selectedBrand); for (const [field, value] of Object.entries(defaults)) setValue(field, value, { shouldDirty: true }); clearErrors(["manufacture_year", "fuel_type", "transmission"]); }}
+                            placeholder={selectedBrand ? "Select model..." : "Select a brand first"}
+                            disabled={controlsDisabled || !selectedBrand}
                             rules={{ required: "Please select a model." }}
                           />
 
@@ -1003,6 +1012,7 @@ export default function VehicleRegistration() {
                             })}
                           />
                           <FieldError errors={errors} name="manufacture_year" />
+                          <p className="mt-1 text-xs text-muted-foreground">Model year, fuel and transmission are suggested when you select a model. Check this vehicle’s actual specification and edit if different. Changing brand/model replaces those suggestions.</p>
                         </div>
                         <div>
                           <label
@@ -1049,7 +1059,7 @@ export default function VehicleRegistration() {
                             name="fuel_type"
                             endpoint="/fuel_type_filter"
                             placeholder="Select fuel type..."
-                            disabled={isBusy}
+                            disabled={controlsDisabled}
                             rules={{ required: "Please select a fuel type." }}
                           />
                           <FieldError errors={errors} name="fuel_type" />
@@ -1065,7 +1075,7 @@ export default function VehicleRegistration() {
                             name="transmission"
                             endpoint="/transmission_type_filter"
                             placeholder="Select transmission..."
-                            disabled={isBusy}
+                            disabled={controlsDisabled}
                             rules={{
                               required: "Please select a transmission.",
                             }}
@@ -1415,7 +1425,7 @@ export default function VehicleRegistration() {
                             id="vehicle_vehicle_status"
                             className="custom-input-sm"
                             aria-invalid={!!errors.vehicle_status}
-                            disabled={isBusy}
+                            disabled={controlsDisabled}
                             {...register("vehicle_status", {
                               required: "Vehicle Status is required.",
                             })}
@@ -1585,7 +1595,7 @@ export default function VehicleRegistration() {
                       Registered Vehicle List
                     </h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Manage fleet vehicles in your branch.
+                      Installation vehicles and your authorized historical records. Historical vehicles are read-only.
                     </p>
                   </div>
 

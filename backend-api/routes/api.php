@@ -27,18 +27,26 @@ use App\Http\Controllers\Api\RentalPackageController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'active.account', 'permissions'])->group(function () {
+Route::get('/public/ai-health', [\App\Http\Controllers\Api\PublicHelpController::class, 'aiHealth'])->middleware('throttle:30,1,public-ai-health');
+Route::get('/public/product', [\App\Http\Controllers\Api\PublicHelpController::class, 'product'])->middleware('throttle:30,1,public-product');
+Route::post('/public/chat', [\App\Http\Controllers\Api\PublicHelpController::class, 'chat'])->middleware('throttle:10,1,public-chat');
+
+Route::middleware(['auth:sanctum', 'active.account', 'permissions', 'installation.branch'])->group(function () {
+    Route::get('/ai/health', [\App\Http\Controllers\Api\AIChatController::class, 'health'])->middleware('throttle:30,1');
+    Route::post('/ai/chat', [\App\Http\Controllers\Api\AIChatController::class, 'chat'])->middleware('throttle:10,1');
+    Route::post('/record_status', [\App\Http\Controllers\Api\RecordStatusController::class, 'update']);
+    Route::post('/amend_booking_dates', [BookingController::class, 'amendDates']);
     Route::post('/authorization_setup', [\App\Http\Controllers\Api\PermissionController::class, 'setup']);
     Route::post('/permission_targets', [\App\Http\Controllers\Api\PermissionController::class, 'targets']);
     Route::post('/permission_catalog', [\App\Http\Controllers\Api\PermissionController::class, 'catalog']);
     Route::post('/permission_target', [\App\Http\Controllers\Api\PermissionController::class, 'target']);
     Route::post('/save_permissions', [\App\Http\Controllers\Api\PermissionController::class, 'save']);
     Route::post('/authorization_audit', [\App\Http\Controllers\Api\PermissionController::class, 'audit']);
-    Route::get('/business_profile', [\App\Http\Controllers\Api\BusinessProfileController::class,'show']);
-    Route::post('/save_business_profile', [\App\Http\Controllers\Api\BusinessProfileController::class,'save']);
-    Route::get('/business_branding', [\App\Http\Controllers\Api\BusinessProfileController::class,'branding']);
-    Route::post('/my_profile_photo', [\App\Http\Controllers\Api\MyProfileController::class,'save']);
-    Route::get('/my_profile_photo', [\App\Http\Controllers\Api\MyProfileController::class,'photo']);
+    Route::get('/business_profile', [\App\Http\Controllers\Api\BusinessProfileController::class, 'show']);
+    Route::post('/save_business_profile', [\App\Http\Controllers\Api\BusinessProfileController::class, 'save']);
+    Route::get('/business_branding', [\App\Http\Controllers\Api\BusinessProfileController::class, 'branding']);
+    Route::post('/my_profile_photo', [\App\Http\Controllers\Api\MyProfileController::class, 'save']);
+    Route::get('/my_profile_photo', [\App\Http\Controllers\Api\MyProfileController::class, 'photo']);
 
     Route::get('/user', function (Request $request) {
         return $request->user();
@@ -136,7 +144,7 @@ Route::middleware(['auth:sanctum', 'active.account', 'permissions'])->group(func
     Route::controller(FleetOperationsController::class)->group(function () {
         Route::post('/get_vehicle_documents', 'getDocuments');
         Route::post('/save_vehicle_document', 'saveDocument');
-        Route::get('/vehicle_documents/{id}', 'downloadDocument')->whereNumber('id');
+        Route::get('/vehicle_documents/{id}', 'downloadDocument')->where('id', '(?:[1-9][0-9]*|ir1\.[a-f0-9]{32}\.[A-Za-z0-9_-]+)');
         Route::post('/get_maintenance', 'getMaintenance');
         Route::post('/save_maintenance', 'saveMaintenance');
         Route::post('/maintenance_status', 'maintenanceStatus');
@@ -167,7 +175,7 @@ Route::middleware(['auth:sanctum', 'active.account', 'permissions'])->group(func
         Route::post('/save_handover', 'saveHandover');
         Route::post('/get_rentals', 'getRentals');
         Route::post('/fetch_rental_data', 'fetchRentalData');
-        Route::get('/rental_photos/{id}', 'downloadPhoto')->whereNumber('id');
+        Route::get('/rental_photos/{id}', 'downloadPhoto')->where('id', '(?:[1-9][0-9]*|ir1\.[a-f0-9]{32}\.[A-Za-z0-9_-]+)');
     });
 
     Route::controller(BookingController::class)->group(function () {
@@ -188,7 +196,7 @@ Route::middleware(['auth:sanctum', 'active.account', 'permissions'])->group(func
         Route::post('/fetch_customer_data', 'fetchCustomerData');
 
         Route::get('/customer_documents/{id}', 'downloadDocument')
-            ->whereNumber('id');
+            ->where('id', '(?:[1-9][0-9]*|ir1\.[a-f0-9]{32}\.[A-Za-z0-9_-]+)');
     });
 
     Route::controller(RentalPackageController::class)->group(function () {
@@ -222,7 +230,7 @@ Route::get(
     '/registered-vehicle-images/{folder}/{filename}',
     [RegisterVehicleController::class, 'showImage']
 )
-    ->where('folder', 'vehicle_[1-9][0-9]*')
+    ->where('folder', 'vehicle_(?:[1-9][0-9]*|ir1\.[a-f0-9]{32}\.[A-Za-z0-9_-]+)')
     ->where('filename', '[a-f0-9-]+\.(jpg|jpeg|png|webp)');
 
 // IMAGE FUNCTIONALITY: public display of brand logos.
@@ -230,7 +238,7 @@ Route::get(
     '/vehicle-brand-images/{folder}/{filename}',
     [VehicleBrandController::class, 'showLogo']
 )
-    ->where('folder', '[a-z0-9-]+_[1-9][0-9]*')
+    ->where('folder', '[a-z0-9-]+_(?:[1-9][0-9]*|ir1\.[a-f0-9]{32}\.[A-Za-z0-9_-]+)')
     ->where('filename', '[a-f0-9-]+\.(jpg|jpeg|png|webp)');
 
 Route::post('/signup', [AuthController::class, 'signup'])->middleware('throttle:6,1');

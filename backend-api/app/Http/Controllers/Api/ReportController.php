@@ -59,7 +59,7 @@ class ReportController extends Controller
         $columns = $service->columns($f['type'], ! empty($f['include_identity']));
         $permissions = app(\App\Services\PermissionService::class);
         if ($permissions->enabled() && ! $permissions->can($r->user(), 'reports.finance')) {
-            $columns = array_values(array_diff($columns, ['Invoice Total', 'Amount Paid', 'Balance', 'Recognized Revenue', 'Subtotal', 'Tax', 'Discount', 'Additional Charges', 'Rental Cash Received', 'Deposit Received', 'Deposit Applied', 'Deposit Refunded', 'Deposit Held']));
+            $columns = array_values(array_diff($columns, ReportService::MONEY_COLUMNS));
         }
         $rows = [];
         $totals = [];
@@ -92,7 +92,7 @@ class ReportController extends Controller
         $size = (int) ($report['filters']['per_page'] ?? 50);
         $count = count($report['rows']);
 
-        return response()->json(['status' => true, 'data' => array_slice($report['rows'], ($page - 1) * $size, $size), 'columns' => $report['columns'], 'totals' => $report['totals'], 'meta' => ['page' => $page, 'per_page' => $size, 'total' => $count, 'last_page' => max(1, (int) ceil($count / $size)), 'filters' => $report['filters'], 'title' => $report['title'], 'generated_at' => $report['generated_at']]])->header('Cache-Control', 'private, no-store');
+        return response()->json(['status' => true, 'data' => array_slice($report['rows'], ($page - 1) * $size, $size), 'columns' => $report['columns'], 'numeric_columns' => array_values(array_intersect($report['columns'], ReportService::NUMBERS)), 'money_columns' => array_values(array_intersect($report['columns'], ReportService::MONEY_COLUMNS)), 'totals' => $report['totals'], 'meta' => ['page' => $page, 'per_page' => $size, 'total' => $count, 'last_page' => max(1, (int) ceil($count / $size)), 'filters' => $report['filters'], 'title' => $report['title'], 'generated_at' => $report['generated_at']]])->header('Cache-Control', 'private, no-store');
     }
 
     public function export(Request $r, ReportService $service, ReportExportService $export)

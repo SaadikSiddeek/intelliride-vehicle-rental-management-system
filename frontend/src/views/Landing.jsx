@@ -1,7 +1,9 @@
+import publicProduct from "@/data/public-product.json";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useStateContext } from "../contexts/ContextProvider";
 import {
+  Mail,
   ArrowRight,
   ArrowUpRight,
   Menu,
@@ -31,7 +33,7 @@ const features = [
     title: "A place for every vehicle.",
     text: "Keep vehicle identity, specifications, rates and compliance details together.",
     label: "VEHICLE REGISTER",
-    status: "Sample workspace",
+    status: "Fleet management",
     segment: ["independent", "branches"],
   },
   {
@@ -39,15 +41,15 @@ const features = [
     title: "People, properly connected.",
     text: "Manage user accounts, staff, departments and designations in one consistent workspace.",
     label: "PEOPLE & TEAMS",
-    status: "API connected",
+    status: "Team workflows",
     segment: ["teams"],
   },
   {
     icon: Building2,
-    title: "Clarity across locations.",
-    text: "Explore a structured branch directory with contacts, managers and operational details.",
-    label: "BRANCH DIRECTORY",
-    status: "Sample workspace",
+    title: "Your installation, clearly defined.",
+    text: "Maintain the contact details and manager name for your installation branch.",
+    label: "BRANCH SETTINGS",
+    status: "Branch details",
     segment: ["branches"],
   },
   {
@@ -55,7 +57,7 @@ const features = [
     title: "The details, organized.",
     text: "Give brands, models, categories, fuel types and transmissions a clear home.",
     label: "FLEET REFERENCE DATA",
-    status: "Sample workspace",
+    status: "Vehicle setup",
     segment: ["independent"],
   },
   {
@@ -75,32 +77,7 @@ const features = [
     segment: ["independent", "teams"],
   },
 ];
-const faqs = [
-  [
-    "What can I use in this version?",
-    "The existing user, staff, department, designation and role forms retain their API integrations. The dashboard, branch directory and vehicle reference screens currently use illustrative records. Vehicle registration is a frontend preview.",
-  ],
-  [
-    "Can I try the product before signing in?",
-    "Yes. The product explorer below uses the actual dashboard, vehicle register and appearance components with sample records. Changes in preview modules are not saved as business data.",
-  ],
-  [
-    "Is the AI assistant already available?",
-    "The assistant interface is ready for a future integration. It is clearly marked as not connected and does not send messages or generate simulated answers.",
-  ],
-  [
-    "Are these subscription prices final?",
-    "No. Starter, Professional and Enterprise are illustrative package concepts in USD. There is no checkout, payment collection or subscription service in this frontend.",
-  ],
-  [
-    "Can I personalize the workspace?",
-    "Yes. Light, dark and system modes, nine presets, preferred quick-switch themes, spacing, table density and motion settings are available. Preferences stay in your browser.",
-  ],
-  [
-    "Does IntelliRide include live rental reporting?",
-    "The supplied dashboard contains sample rental and revenue records. Live rental reporting and any additional operational services require your existing backend to provide those capabilities.",
-  ],
-];
+const faqs = publicProduct.faq.map(({question, answer}) => [question, answer]);
 export default function Landing() {
   const { token } = useStateContext();
   const workspaceDestination = token ? "/dashboard" : "/signup";
@@ -129,7 +106,7 @@ export default function Landing() {
               ["#solutions", "Solutions"],
               ["#how-it-works", "How it works"],
               ["#pricing", "Pricing"],
-              ["#contact", "Contact"],
+              [publicProduct.contact, "Contact"],
             ].map(([href, label]) => (
               <a key={href} href={href} onClick={closeMenu}>
                 {label}
@@ -228,7 +205,7 @@ export default function Landing() {
               <Users size={17} /> Connected teams
             </div>
             <div>
-              <Building2 size={17} /> Organized branches
+              <Building2 size={17} /> One installation per branch
             </div>
             <div>
               <Route size={17} /> A clearer workflow
@@ -321,7 +298,7 @@ export default function Landing() {
                 ],
                 [
                   "branches",
-                  "Multiple branches",
+                  "Separate branch installations",
                   "Keep locations and reference data clear.",
                 ],
                 [
@@ -350,7 +327,7 @@ export default function Landing() {
               {operation === "independent"
                 ? "Start with vehicle organization, reference data and personal appearance."
                 : operation === "branches"
-                  ? "Explore the branch directory, vehicle register and role administration."
+                  ? "Explore Branch Settings, vehicle registration and role administration."
                   : "Explore users, staff, departments and designations."}
             </p>
             <a href="#features" className="site-text-link">
@@ -396,7 +373,7 @@ export default function Landing() {
                 [
                   "04",
                   "See the bigger picture",
-                  "Explore the sample dashboard and prepare for future reporting.",
+                  "Monitor authorized rental, fleet and financial reports.",
                 ],
               ].map(([number, title, description]) => (
                 <article key={number}>
@@ -423,12 +400,13 @@ export default function Landing() {
                 <em>Thoughtfully connected.</em>
               </h2>
               <p>
-                We’re preparing a home for AI assistance inside IntelliRide. The
-                assistant workspace and floating chat interface are ready; a
-                real AI service will be connected later.
+                Public product guidance is available here. Inside IntelliRide,
+                the configured chatbot supports conversations. The separate AI
+                Agent workspace is planned; it cannot perform system actions
+                yet.
               </p>
               <span className="roadmap-status">
-                Planned integration · not connected
+                Chatbot integration available · Agent actions planned
               </span>
             </div>
             <ul>
@@ -454,7 +432,7 @@ export default function Landing() {
               <em>clarity.</em>
             </h2>
             <p>
-              What’s available now, what’s illustrative, and what comes next.
+              Practical answers for your rental business.
             </p>
           </div>
           <div className="faq-list">
@@ -480,7 +458,8 @@ export default function Landing() {
               Explore IntelliRide, or sign in with your organization account.
             </p>
             <div>
-              <Link to={workspaceDestination} className="site-button">
+              <a className="site-button" href={publicProduct.contact}><Mail size={17}/> Contact Us</a><a className="site-text-link" href={publicProduct.contact}>{publicProduct.contactEmail}</a>
+              <Link to={workspaceDestination} className="site-text-link">
                 {token ? "Open workspace" : "Get started"}{" "}
                 <ArrowUpRight size={17} />
               </Link>
@@ -489,8 +468,7 @@ export default function Landing() {
               </Link>
             </div>
             <small>
-              For account access and product inquiries, contact your
-              organization administrator.
+              For existing account access, contact your organization administrator. For product enquiries, email our team.
             </small>
           </div>
         </section>
@@ -516,8 +494,9 @@ export default function Landing() {
           <div>
             <strong>LEARN MORE</strong>
             <a href="#solutions">Your operation</a>
-            <a href="#pricing">Illustrative plans</a>
+            <a href="#pricing">Packages</a>
             <a href="#faq">Questions & answers</a>
+            <a href={publicProduct.contact}>Contact Us</a>
           </div>
           <div>
             <strong>WORKSPACE</strong>

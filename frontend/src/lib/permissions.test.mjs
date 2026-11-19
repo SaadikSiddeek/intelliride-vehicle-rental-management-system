@@ -33,8 +33,13 @@ test("permission revocation changes route and action checks immediately", () => 
   assert.equal(canVisit(account, "/user-management/manage"), false);
   assert.equal(hasPermission(account, "users.edit"), false);
 });
-test("unimplemented AI pages receive no fabricated RBAC access", () => {
-  assert.equal(canVisit(user(Object.values(pagePermissions)), "/ai/agent"), false);
+test("AI availability workspaces retain authenticated navigation without business grants", () => {
+  for (const route of ["/ai/agent", "/ai/chatbot"]) {
+    assert.equal(canVisit(user([]), route), true);
+    assert.equal(canVisit({ ...user([]), status: false }, route), false);
+    assert.equal(canVisit(null, route), false);
+    assert.equal(hasPermission(user([]), "ai.execute"), false);
+  }
   assert.equal(canVisit(user([]), "/settings"), true);
 });
 test("legacy access remains explicit and cannot expose new permission management", () => {

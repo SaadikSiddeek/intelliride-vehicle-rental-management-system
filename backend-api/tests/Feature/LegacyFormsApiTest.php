@@ -92,3 +92,25 @@ test('legacy Vehicle create edit and inspection status remain branch scoped',fun
  expect(DB::table('vehicle_tb')->where('ID',$id)->value('status'))->toBe('Inspection Required');
  $this->postJson('/api/save_vehicle',$payload)->assertUnprocessable();
 });
+
+
+test('vehicle model lookup scopes brand and supplies defaults without overwriting per-vehicle specifications',function(){
+    DB::table('vehicle_model_tb')->where('ID',1)->update(['manufacture_year'=>2021]);
+    DB::table('vehicle_brand_tb')->insert(['ID'=>2,'brand_name'=>'Other QA Brand']);
+    DB::table('vehicle_model_tb')->insert(['ID'=>2,'brand_id'=>2,'fuel_type_id'=>1,'transmission_type_id'=>1,'model_name'=>'Other QA Model','manufacture_year'=>2023]);
+    $this->postJson('/api/model_filter?brand_id=1')->assertOk()->assertJsonCount(1,'data')->assertJsonPath('data.0.id',1);
+    $this->postJson('/api/model_filter?brand_id=1',['id'=>2])->assertOk()->assertJsonCount(0,'data');
+    $this->postJson('/api/model_filter?brand_id=2')->assertOk()->assertJsonPath('data.0.id',2);
+    $list=$this->postJson('/api/get_vehicles')->assertOk();
+    $model=collect($list->json('options.models'))->firstWhere('ID',1);
+    expect((int)$model['manufacture_year'])->toBe(2021)->and((int)$model['fuel_type_id'])->toBe(1)->and((int)$model['transmission_type_id'])->toBe(1);
+    $payload=['number_plate'=>'QA-DEFAULTS-ONLY','category'=>1,'brand'=>1,'model'=>1,'fuel_type'=>1,'transmission'=>1,'manufacture_year'=>2020,'daily_rental_rate'=>'1000.00','vehicle_status'=>'Available','features'=>'[]','mileage'=>500];
+    $before=DB::table('vehicle_tb')->count();
+    $id=$this->postJson('/api/save_vehicle',$payload)->assertCreated()->json('data.ID');
+    $this->postJson('/api/fetch_vehicle_data',['upd_id'=>$id])->assertOk()->assertJsonPath('data.manufacture_year',2020);
+    $this->postJson('/api/save_vehicle',[...$payload,'upd_id'=>$id,'manufacture_year'=>2019])->assertOk();
+    expect(DB::table('vehicle_tb')->count())->toBe($before+1)->and((int)DB::table('vehicle_tb')->where('ID',$id)->value('manufacture_year'))->toBe(2019)->and((int)DB::table('vehicle_model_tb')->where('ID',1)->value('manufacture_year'))->toBe(2021);
+    $this->postJson('/api/save_vehicle',$payload)->assertUnprocessable();
+    $this->postJson('/api/save_vehicle',[...$payload,'number_plate'=>'QA-INVALID-MODEL','model'=>2])->assertUnprocessable();
+    expect(DB::table('vehicle_tb')->count())->toBe($before+1);
+});

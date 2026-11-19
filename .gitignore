@@ -39,3 +39,8 @@ env/
 FRONTEND_UI_REDESIGN_GUIDE.md
 QA_RESULTS.md
 REDESIGN_FILE_CHANGES.md
+# Private local database backups (never commit)
+/artifacts/product-installation/
+
+# Private local email captures
+/artifacts/mail-capture/

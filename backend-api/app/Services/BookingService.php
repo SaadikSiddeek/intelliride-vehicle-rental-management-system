@@ -85,7 +85,7 @@ class BookingService
             'version' => 1, 'currency' => 'LKR', 'timezone' => $timezone,
             'quoted_at' => now()->toIso8601String(), 'package_id' => $package->ID,
             'package_name' => $package->package_name, 'billing_unit' => $package->billing_unit,
-            'duration_minutes' => $minutes, 'units' => $units,
+            'duration_minutes' => $minutes, 'units' => $units, 'minimum_units' => (int) $package->minimum_units,
             'package_rate' => self::money($rate), 'agreed_rate' => self::money($agreed),
             'included_km' => $package->included_km_per_unit === null ? null : $units * (int) $package->included_km_per_unit,
             'included_km_per_unit' => $package->included_km_per_unit,
@@ -96,6 +96,25 @@ class BookingService
             'security_deposit' => (string) $package->security_deposit,
             'pricing_authorized_by' => ($rate !== $agreed || $discount > 0) ? $user->getAuthIdentifier() : null,
         ];
+    }
+
+    public function amendmentQuote(array $snapshot, array $dates): array
+    {
+        // Older snapshots omit minimum_units: never infer them from a changed package.
+        $start = CarbonImmutable::createFromFormat('!Y-m-d\TH:i', $dates['pickup_at'], $snapshot['timezone']);
+        $end = CarbonImmutable::createFromFormat('!Y-m-d\TH:i', $dates['expected_return_at'], $snapshot['timezone']);
+        $minutes = (int) $start->diffInMinutes($end, false);
+        if ($minutes <= 0 || $minutes > 527040) throw ValidationException::withMessages(['expected_return_at' => 'Return must be after pickup and within 366 days.']);
+        if (! isset($snapshot['minimum_units']) && $minutes !== (int) $snapshot['duration_minutes']) throw ValidationException::withMessages(['expected_return_at' => 'This older booking lacks an agreed minimum-unit snapshot. Keep its duration unchanged or use a controlled replacement.']);
+        $units = isset($snapshot['minimum_units']) ? max($snapshot['minimum_units'], (int) ceil($minutes / self::UNIT_MINUTES[$snapshot['billing_unit']])) : $snapshot['units'];
+        $subtotal = self::cents($snapshot['agreed_rate']) * $units + array_sum(array_map(fn ($e) => self::cents($e['amount']), $snapshot['extras']));
+        $taxable = $subtotal - self::cents($snapshot['discount']);
+        if ($taxable < 0) throw ValidationException::withMessages(['expected_return_at' => 'Discount exceeds the amended subtotal.']);
+        $tax = intdiv($taxable * $snapshot['tax_basis_points'] + 5000, 10000);
+        if ($taxable + $tax > 99999999999999) throw ValidationException::withMessages(['expected_return_at' => 'The amended amount exceeds the supported limit.']);
+        return [...$snapshot, 'duration_minutes' => $minutes, 'units' => $units,
+            'included_km' => $snapshot['included_km_per_unit'] === null ? null : $snapshot['included_km_per_unit'] * $units,
+            'subtotal' => self::money($subtotal), 'tax' => self::money($tax), 'total' => self::money($taxable + $tax)];
     }
 
     public static function excludeCompletedRentals($query, string $bookingTable = 'booking_tb'): void

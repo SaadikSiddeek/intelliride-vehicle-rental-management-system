@@ -19,6 +19,7 @@ export default function CustomDrawer({
   submitText = "Save",
   saving = false,
   canSubmit = true,
+  submitDisabled = false,
   size = "max-w-2xl",
 }) {
   return (
@@ -41,7 +42,7 @@ export default function CustomDrawer({
         <div className="form-drawer-body">{children}</div>
         <DrawerFooter className="form-drawer-footer">
           <DrawerClose render={<Button variant="outline">Cancel</Button>} />
-          {canSubmit && <Button onClick={onSubmit} disabled={saving} aria-busy={saving}>
+          {canSubmit && <Button onClick={onSubmit} disabled={saving || submitDisabled} aria-busy={saving}>
             {saving ? <LoaderCircle size={16} className="animate-spin" /> : <Save size={16} />}
             {submitText}
           </Button>}

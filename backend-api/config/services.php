@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'intelliride_ai' => [
+        'url' => env('AI_SERVICE_URL', 'http://127.0.0.1:8008'),
+        'token' => env('AI_SERVICE_TOKEN'),
+    ],
 
     /*
     |--------------------------------------------------------------------------

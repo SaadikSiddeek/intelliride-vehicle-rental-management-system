@@ -1,3 +1,4 @@
+import { statusColumn } from "@/lib/status-column";
 import usePermissions from "@/hooks/usePermissions";
 import PermissionGate from "@/components/PermissionGate";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -344,17 +345,7 @@ export default function VehicleCategory() {
           minWidth: 250,
           widthGrow: 3,
         },
-        {
-          title: "Status",
-          field: "status",
-          hozAlign: "center",
-          width: 120,
-
-          formatter: (cell) =>
-            Number(cell.getValue()) === 1
-              ? `<span class="inline-flex items-center rounded-full bg-[var(--success-soft)] px-3 py-1 text-xs font-medium text-[var(--success)]">Active</span>`
-              : `<span class="inline-flex items-center rounded-full bg-[var(--danger-soft)] px-3 py-1 text-xs font-medium text-destructive">Inactive</span>`,
-        },
+        statusColumn("categories", can("categories.edit")),
         {
           title: "Actions",
           field: "id",

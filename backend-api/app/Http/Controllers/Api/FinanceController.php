@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Rental;
+use App\Services\ActorDisplay;
 use App\Services\BookingService;
 use App\Services\FinanceService;
 use Illuminate\Http\Request;
@@ -34,7 +35,7 @@ class FinanceController extends Controller
         $rows = $query->orderByDesc('ID')->get()->map(function ($i) use ($service) {
             $s = json_decode($i->snapshot, true);
 
-            return ['id' => $i->ID, 'text' => 'INV-'.str_pad($i->ID, 6, '0', STR_PAD_LEFT).' — '.$s['rental']['rental_snapshot']['customer']['name'], ...$service->summary($i)];
+            return ['id' => $i->ID, 'text' => \App\Services\CodeGenerator::reference('invoice', $i->ID).' — '.$s['rental']['rental_snapshot']['customer']['name'], ...$service->summary($i)];
         });
         if (! empty($f['q'])) {
             $rows = $rows->filter(fn ($r) => str_contains(mb_strtolower($r['text']), mb_strtolower($f['q'])))->values();
@@ -60,7 +61,7 @@ class FinanceController extends Controller
             $snapshot = json_decode($i->snapshot, true);
             $s = $snapshot['rental']['rental_snapshot'];
 
-            return ['id' => $i->ID, 'issued_on' => $i->issued_on, 'customer_name' => $s['customer']['name'], 'vehicle_number' => $s['vehicle']['number'], 'booking_number' => 'BKG-'.str_pad($i->booking_id, 6, '0', STR_PAD_LEFT), 'rental_number' => 'RNT-'.str_pad($i->rental_id, 6, '0', STR_PAD_LEFT), 'tax' => $i->tax, 'discount' => $i->discount, ...$service->summary($i)];
+            return ['id' => $i->ID, 'issued_on' => $i->issued_on, 'customer_name' => $s['customer']['name'], 'vehicle_number' => $s['vehicle']['number'], 'booking_number' => \App\Services\CodeGenerator::reference('booking', $i->booking_id), 'rental_number' => \App\Services\CodeGenerator::reference('rental', $i->rental_id), 'tax' => $i->tax, 'discount' => $i->discount, ...$service->summary($i)];
         });
         if (! empty($f['payment_status'])) {
             $rows = $rows->where('payment_status', $f['payment_status'])->values();
@@ -167,17 +168,28 @@ return $existing->ID;
         $f = $this->filters($request);
         $rows = collect();
         foreach (['booking_payment_tb' => 'Booking Advance', 'invoice_payment_tb' => 'Invoice Payment'] as $table => $source) {
-            $q = DB::table($table);
+            $q = DB::table($table.' as p');
+            $columns = ['p.*'];
+            if ($source === 'Invoice Payment') {
+                $q->leftJoin('invoice_tb as i', 'i.ID', '=', 'p.invoice_id');
+                $columns[] = 'i.booking_id as linked_booking_id';
+            }
             if (isset($f['from'])) {
                 $q->where('paid_on', '>=', $f['from']);
             }if (isset($f['to'])) {
                 $q->where('paid_on', '<=', $f['to']);
             }if (isset($f['method'])) {
                 $q->where('method', $f['method']);
-            }foreach ($q->orderByDesc('ID')->get() as $p) {
-                $rows->push(['id' => ($source === 'Booking Advance' ? 'ADV-' : 'PAY-').$p->ID, 'source' => $source, 'booking_id' => $p->booking_id ?? null, 'invoice_id' => $p->invoice_id ?? null, 'amount' => $p->amount, 'method' => $p->method, 'reference' => $p->reference, 'paid_on' => $p->paid_on, 'recorded_by' => $p->recorded_by]);
+            }foreach ($q->orderByDesc('p.ID')->get($columns) as $p) {
+                $rows->push(['id' => \App\Services\CodeGenerator::reference($source === 'Booking Advance' ? 'advance' : 'payment', $p->ID), 'source' => $source, 'booking_id' => $p->booking_id ?? null, 'invoice_id' => $p->invoice_id ?? null,
+                    'invoice_number' => isset($p->invoice_id) ? \App\Services\CodeGenerator::reference('invoice', $p->invoice_id) : null,
+                    'booking_number' => isset($p->booking_id) || isset($p->linked_booking_id) ? \App\Services\CodeGenerator::reference('booking', $p->booking_id ?? $p->linked_booking_id) : null,
+                    'amount' => $p->amount, 'method' => $p->method, 'reference' => $p->reference, 'paid_on' => $p->paid_on, 'recorded_by' => $p->recorded_by]);
             }
         }
+
+        $names = ActorDisplay::names($rows->pluck('recorded_by'));
+        $rows = $rows->map(fn ($row) => [...$row, 'recorded_by_name' => ActorDisplay::label($row['recorded_by'], $names)]);
 
         return response()->json(['status' => true, 'data' => $rows->sortByDesc('paid_on')->values()])->header('Cache-Control', 'private, no-store');
     }
@@ -195,6 +207,14 @@ return $existing->ID;
             $q->where('method',$f['method']);
         }
 
-        return response()->json(['status' => true, 'data' => $q->orderByDesc('ID')->get(['ID as id', 'rental_id', 'invoice_id', 'amount', 'method', 'reference', 'reason', 'recorded_by', 'created_at'])])->header('Cache-Control','private, no-store');
+        $rows = $q->orderByDesc('ID')->get(['ID as id', 'rental_id', 'invoice_id', 'amount', 'method', 'reference', 'reason', 'recorded_by', 'created_at']);
+        $names = ActorDisplay::names($rows->pluck('recorded_by'));
+        foreach ($rows as $row) {
+            $row->invoice_number = $row->invoice_id === null ? null : \App\Services\CodeGenerator::reference('invoice', $row->invoice_id);
+            $row->rental_number = \App\Services\CodeGenerator::reference('rental', $row->rental_id);
+            $row->recorded_by_name = ActorDisplay::label($row->recorded_by, $names);
+        }
+
+        return response()->json(['status' => true, 'data' => $rows])->header('Cache-Control', 'private, no-store');
     }
 }

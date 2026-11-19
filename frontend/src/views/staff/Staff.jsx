@@ -1,3 +1,4 @@
+import { statusColumn } from "@/lib/status-column";
 import usePermissions from "@/hooks/usePermissions";
 import PermissionGate from "@/components/PermissionGate";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -332,34 +333,24 @@ export default function Staff() {
           widthGrow: 2,
         },
         {
-          title: "Branch ID",
-          field: "branch",
+          title: "Branch",
+          field: "branch_name",
           formatter: "plaintext",
           width: 120,
         },
         {
-          title: "Designation ID",
-          field: "designation",
+          title: "Designation",
+          field: "designation_name",
           formatter: "plaintext",
           width: 140,
         },
         {
-          title: "Department ID",
-          field: "department",
+          title: "Department",
+          field: "department_name",
           formatter: "plaintext",
           width: 140,
         },
-        {
-          title: "Status",
-          field: "status",
-          hozAlign: "center",
-          width: 110,
-
-          formatter: (cell) =>
-            Number(cell.getValue()) === 1
-              ? `<span class="rounded-full bg-[var(--success-soft)] px-3 py-1 text-xs text-[var(--success)]">Active</span>`
-              : `<span class="rounded-full bg-[var(--danger-soft)] px-3 py-1 text-xs text-destructive">Inactive</span>`,
-        },
+        statusColumn("staff", can("staff.edit")),
         {
           title: "Actions",
           field: "id",
@@ -607,23 +598,6 @@ export default function Staff() {
                       description="Work assignment, joining date and status."
                     >
                       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                        {/* Branch */}
-                        <div>
-                          <label
-                            htmlFor="branch"
-                            className="mb-2 block text-sm font-semibold"
-                          >
-                            Branch
-                          </label>
-
-                          <Select2
-                            name="branch"
-                            endpoint="/branch_filter"
-                            placeholder="Select branch..."
-                            disabled={isBusy}
-                            rules={{ required: "Please select a branch." }}
-                          />
-                        </div>
 
                         {/* Designation */}
                         <div>

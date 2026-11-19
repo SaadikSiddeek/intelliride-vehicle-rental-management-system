@@ -1,3 +1,4 @@
+import { formatDecimal, formatNumber } from "@/lib/display-values.mjs";
 import usePermissions from "@/hooks/usePermissions";
 import PermissionGate from "@/components/PermissionGate";
 import DateRange from "@/components/forms/DateRange";
@@ -37,7 +38,15 @@ function ReportScreen({ type }) {
     try {
       const { data } = await axiosClient.post("/get_report", { ...getValues(), type, page: nextPage }, { signal: request.signal });
       if (request.signal.aborted) return;
-      table.current?.setColumns(data.columns.map((column) => ({ title: column, field: column, minWidth: 150, hozAlign: /Revenue|Total|Tax|Discount|Charge|Received|Applied|Refunded|Paid|Balance|Held/.test(column) ? "right" : "left", formatter: /Revenue|Total|Tax|Discount|Charge|Received|Applied|Refunded|Paid|Balance|Held/.test(column) ? cell => Number(cell.getValue() || 0).toLocaleString("en-LK", {minimumFractionDigits:2,maximumFractionDigits:2}) : "plaintext" })));
+      const numericColumns = new Set(data.numeric_columns);
+      const moneyColumns = new Set(data.money_columns);
+      table.current?.setColumns(data.columns.map((column) => ({
+        title: column, field: column, minWidth: 150,
+        hozAlign: numericColumns.has(column) ? "right" : "left",
+        sorter: numericColumns.has(column) ? "number" : "string",
+        formatter: moneyColumns.has(column) ? cell => formatDecimal(cell.getValue())
+          : numericColumns.has(column) ? cell => formatNumber(cell.getValue()) : "plaintext",
+      })));
       await table.current?.setData(data.data.map((row, index) => ({ id: index, ...row })));
       appliedFilters.current = data.meta.filters; setMeta(data.meta); setTotals(data.totals); setPage(nextPage);
     } catch (e) { if (!request.signal.aborted) showErrors(e); }
@@ -76,7 +85,6 @@ function ReportScreen({ type }) {
         {!noCustomer && <div><label htmlFor="customer_id" className="mb-2 block text-sm font-semibold">Customer{type === "customer_history" ? " *" : ""}</label><Select2 name="customer_id" endpoint="/report_customer_filter" rules={type === "customer_history" ? { required: "Select a customer." } : undefined} /></div>}
         <div><label htmlFor="vehicle_id" className="mb-2 block text-sm font-semibold">Vehicle</label><Select2 name="vehicle_id" endpoint="/rental_package_vehicles" /></div>
         <div><label htmlFor="report_search" className="mb-2 block text-sm font-semibold">Search report</label><Input id="report_search" placeholder="Search visible report fields" {...register("q")} /></div>
-        <div><label htmlFor="branch_id" className="mb-2 block text-sm font-semibold">Branch</label><Select2 name="branch_id" endpoint="/branch_filter" /></div>
         {type !== "vehicle_utilization" && <div><label htmlFor="staff_id" className="mb-2 block text-sm font-semibold">Staff employee</label><Select2 name="staff_id" endpoint="/staff_filter" /></div>}
         {statuses.length > 0 && <div><label htmlFor="report_status" className="mb-2 block text-sm font-semibold">Status</label><NativeSelect id="report_status" {...register("status")}><option value="">All applicable statuses</option>{statuses.map((status) => <option key={status} value={status}>{status}</option>)}</NativeSelect></div>}
         <div><label htmlFor="report_size" className="mb-2 block text-sm font-semibold">Rows per page</label><NativeSelect id="report_size" {...register("per_page")}>{[10, 50, 100, 200].map((size) => <option key={size} value={size}>{size}</option>)}</NativeSelect></div>
@@ -86,7 +94,7 @@ function ReportScreen({ type }) {
       {meta && <p className="mb-4 text-sm text-muted-foreground">{meta.total} filtered records · {meta.filters.from} to {meta.filters.to} · Generated {meta.generated_at} Asia/Colombo. Exports use the currently displayed report filters across all pages; Apply Filters updates both.</p>}
       <div id="report-tb" className="relative overflow-hidden rounded-xl border border-border bg-card p-5" aria-busy={loading}><div ref={tableElement} className="overflow-hidden rounded-xl border border-border" /></div>
       {meta && <div className="mt-4 flex items-center justify-between gap-4"><button type="button" className="btn-primary" disabled={loading || page <= 1} onClick={() => void load(page - 1)}>Previous</button><p className="text-sm">Page {page} of {meta.last_page}</p><button type="button" className="btn-primary" disabled={loading || page >= meta.last_page} onClick={() => void load(page + 1)}>Next</button></div>}
-      {Object.keys(totals).length > 0 && <details className="mt-5 rounded-xl border border-border bg-card p-5"><summary className="cursor-pointer text-sm font-semibold">Filtered totals across all pages</summary><dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">{Object.entries(totals).map(([label, amount]) => <div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="font-semibold">{new Intl.NumberFormat("en-LK", { maximumFractionDigits: 3 }).format(amount)}</dd></div>)}</dl></details>}
+      {Object.keys(totals).length > 0 && <details className="mt-5 rounded-xl border border-border bg-card p-5"><summary className="cursor-pointer text-sm font-semibold">Filtered totals across all pages</summary><dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">{Object.entries(totals).map(([label, amount]) => <div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="font-semibold">{formatNumber(amount)}</dd></div>)}</dl></details>}
       <p className="mt-4 text-xs text-muted-foreground">Issued invoice amounts, cash receipts and deposit movements are distinct. Outstanding balances are current balances; utilization shows recorded usage/downtime and leaves unsupported idle time unclassified.</p>
     </div></div><CarLoader targetId="report-tb" show={loading} text="Loading Report" />
   </>;

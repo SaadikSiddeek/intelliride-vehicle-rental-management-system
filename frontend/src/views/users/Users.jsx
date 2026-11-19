@@ -1,3 +1,4 @@
+import { statusColumn } from "@/lib/status-column";
 import PermissionGate from "@/components/PermissionGate";
 import usePermissions from "@/hooks/usePermissions";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -302,7 +303,7 @@ export default function Users() {
       `,
 
       columns: [
-        ...(isRbac ? [{title: "Account type", field: "user_type", formatter: cell => ({super_admin: "Super Admin", admin: "Admin", user: "Normal User"})[cell.getValue()] || "Unknown", minWidth: 135}, {title: "Status", field: "status", formatter: cell => cell.getValue() ? "Active" : "Inactive", minWidth: 100}] : []),
+        ...(isRbac ? [{title: "Account type", field: "user_type", formatter: cell => ({super_admin: "Super Admin", admin: "Admin", user: "Normal User"})[cell.getValue()] || "Unknown", minWidth: 135}, statusColumn("users", can("users.deactivate"))] : []),
         {
           title: "Username",
           field: "username",

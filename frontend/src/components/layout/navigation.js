@@ -74,7 +74,7 @@ export const navigation = [
       { label: "Users", permission: "administration", to: "/user-management/manage", icon: Users },
       { label: "Permissions", to: "/permission-management/manage", icon: ShieldCheck },
       { label: "Staff", to: "/staff-management/manage", icon: UserRoundCog },
-      { label: "Branches", to: "/branch-management/manage", icon: Building2 },
+      { label: "Branch Settings", to: "/branch-management/manage", icon: Building2 },
       { label: "Roles & access", permission: "administration", to: "/role-management/manage", icon: ShieldCheck },
     ],
   },

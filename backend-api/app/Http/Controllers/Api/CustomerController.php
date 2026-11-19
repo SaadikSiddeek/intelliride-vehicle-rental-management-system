@@ -36,7 +36,7 @@ class CustomerController extends Controller
 
     private function customerCode($id): string
     {
-        return 'CUS-' . str_pad((string) $id, 6, '0', STR_PAD_LEFT);
+        return \App\Services\CodeGenerator::reference('customer', (string) $id);
     }
 
     private function documentDisk()
@@ -402,10 +402,15 @@ class CustomerController extends Controller
             $query->where('ID', $filters['id']);
         } elseif (!empty($filters['q'])) {
             $search = '%'.$filters['q'].'%';
-            $query->where(fn ($q) => $q->where('full_name', 'like', $search)->orWhere('mobile', 'like', $search));
+            $query->where(function ($q) use ($search, $filters) {
+                $q->where('full_name', 'like', $search)->orWhere('mobile', 'like', $search);
+                if (preg_match('/^CUS-(\d{1,18})$/i', trim($filters['q']), $match)) {
+                    $q->orWhere('ID', (int) $match[1]);
+                }
+            });
         }
-        $options = $query->orderBy('full_name')->limit(20)->get(['ID', 'full_name', 'mobile'])
-            ->map(fn ($customer) => ['id' => $customer->ID, 'text' => $customer->full_name.' — '.$customer->mobile]);
+        $options = $query->orderBy('full_name')->limit(20)->get(['ID', 'full_name'])
+            ->map(fn ($customer) => ['id' => $customer->ID, 'text' => $customer->full_name.' — '.$this->customerCode($customer->ID)]);
         return response()->json(['success' => true, 'data' => $options])->header('Cache-Control', 'private, no-store');
     }
 

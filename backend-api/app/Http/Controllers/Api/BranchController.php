@@ -130,7 +130,8 @@ class BranchController extends Controller
     public function getBranches()
     {
         try {
-            $branches = DB::table('branch_tb')->select([
+            $current = app(\App\Services\InstallationBranch::class)->current();
+            $branches = DB::table('branch_tb')->where('ID', $current->ID)->select([
                 'ID as id', 'branch_name', 'branch_code', 'address', 'contact_number',
                 'manager_id', 'manager_name', 'status',
             ])->orderByDesc('ID')->get();

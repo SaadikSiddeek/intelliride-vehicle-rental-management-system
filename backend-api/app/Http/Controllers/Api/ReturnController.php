@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Rental;
+use App\Services\ActorDisplay;
 use App\Services\BookingService;
 use App\Services\BusinessProfileService;
 use App\Services\FinanceService;
@@ -30,7 +31,7 @@ class ReturnController extends Controller
         if (isset($f['id'])) {
             $query->where('ID', $f['id']);
         }
-        $rows = $query->orderByDesc('ID')->get()->map(fn ($r) => ['id' => $r->ID, 'text' => 'RNT-'.str_pad($r->ID, 6, '0', STR_PAD_LEFT).' — '.$r->rental_snapshot['customer']['name'].' — '.$r->rental_snapshot['vehicle']['number']]);
+        $rows = $query->orderByDesc('ID')->get()->map(fn ($r) => ['id' => $r->ID, 'text' => \App\Services\CodeGenerator::reference('rental', $r->ID).' — '.$r->rental_snapshot['customer']['name'].' — '.$r->rental_snapshot['vehicle']['number']]);
         if (! empty($f['q'])) {
             $rows = $rows->filter(fn ($r) => str_contains(mb_strtolower($r['text']), mb_strtolower($f['q'])))->values();
         }
@@ -112,7 +113,7 @@ class ReturnController extends Controller
             unset($r->rental_snapshot);
             $r->customer_name = $s['customer']['name'];
             $r->vehicle_number = $s['vehicle']['number'];
-            $r->rental_number = 'RNT-'.str_pad($r->rental_id, 6, '0', STR_PAD_LEFT);
+            $r->rental_number = \App\Services\CodeGenerator::reference('rental', $r->rental_id);
 
             return $r;
         });
@@ -128,9 +129,14 @@ class ReturnController extends Controller
         abort_unless($assessment, 404, 'Return assessment not found.');
         $rental = Rental::findOrFail($assessment->rental_id);
         $assessment->rental = $rental;
+        $assessment->rental_number = \App\Services\CodeGenerator::reference('rental', $rental->ID);
         $assessment->calculation = $assessment->status === 'Finalized' ? json_decode($assessment->final_snapshot, true) : $service->calculate($rental, $assessment);
         $assessment->photos = DB::table('rental_photo_tb')->where('rental_id', $rental->ID)->get(['ID', 'stage']);
         $assessment->audit = DB::table('rental_return_audit_tb')->where('return_id', $assessment->ID)->orderBy('ID')->get(['ID', 'revision', 'action', 'recorded_by', 'created_at']);
+        $names = ActorDisplay::names($assessment->audit->pluck('recorded_by'));
+        foreach ($assessment->audit as $entry) {
+            $entry->recorded_by_name = ActorDisplay::label($entry->recorded_by, $names);
+        }
 
         return response()->json(['status' => true, 'data' => $assessment])->header('Cache-Control', 'private, no-store');
     }

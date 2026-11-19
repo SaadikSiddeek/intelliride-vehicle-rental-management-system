@@ -107,7 +107,7 @@ class InputFiltersController extends Controller
             'q'  => ['nullable', 'string', 'max:100'],
         ]);
 
-        $query = DB::table('branch_tb')
+        $query = DB::table('branch_tb')->where('ID', app(\App\Services\InstallationBranch::class)->current()->ID)
             ->select('ID', 'branch_code', 'branch_name');
 
         // Apply your existing branch filter here if staff are branch-specific.
@@ -392,11 +392,13 @@ class InputFiltersController extends Controller
     {
         $filters = $request->validate([
             'id' => ['nullable', 'integer', 'min:1'],
+            'brand_id' => ['nullable', 'integer', 'min:1'],
             'q'  => ['nullable', 'string', 'max:100'],
         ]);
 
         $query = DB::table('vehicle_model_tb')
             ->select('ID', 'model_name', 'manufacture_year');
+        if (isset($filters['brand_id'])) $query->where('brand_id', $filters['brand_id']);
 
         // Apply your existing branch filter here if staff are branch-specific.
 

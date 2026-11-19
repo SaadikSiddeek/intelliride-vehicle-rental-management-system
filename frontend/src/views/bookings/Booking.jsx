@@ -1,3 +1,5 @@
+import { formatMoney } from "@/lib/display-values.mjs";
+import BookingDateAmendment from "./BookingDateAmendment";
 import usePermissions from "@/hooks/usePermissions";
 import PermissionGate from "@/components/PermissionGate";
 import useRecordLink from "@/hooks/useRecordLink";
@@ -21,7 +23,6 @@ const EMPTY_FORM = {
   customer_id: "",
   pickup_at: "",
   expected_return_at: "",
-  pickup_branch_id: "",
   vehicle_id: "",
   package_id: "",
   agreed_rate: "",
@@ -34,10 +35,6 @@ const EMPTY_FORM = {
   notes: "",
   status: "Draft",
 };
-const money = new Intl.NumberFormat("en-LK", {
-  style: "currency",
-  currency: "LKR",
-});
 const AMOUNT = /^\d{1,10}(\.\d{1,2})?$/;
 const STATUSES = [
   "Draft",
@@ -78,14 +75,14 @@ function PricingSummary({ quote, paid = 0 }) {
           "Included kilometres",
           quote.included_km == null ? "Unlimited" : `${quote.included_km} km`,
         ],
-        ["Excess kilometre charge", money.format(quote.extra_km_charge)],
-        ["Subtotal", money.format(quote.subtotal)],
-        ["Discount", money.format(quote.discount)],
-        [`Tax (${quote.tax_basis_points / 100}%)`, money.format(quote.tax)],
-        ["Rental total", money.format(quote.total)],
-        ["Refundable security deposit", money.format(quote.security_deposit)],
-        ["Recorded rental payments", money.format(paid)],
-        ["Rental balance", money.format(Number(quote.total) - paid)],
+        ["Excess kilometre charge", formatMoney(quote.extra_km_charge)],
+        ["Subtotal", formatMoney(quote.subtotal)],
+        ["Discount", formatMoney(quote.discount)],
+        [`Tax (${quote.tax_basis_points / 100}%)`, formatMoney(quote.tax)],
+        ["Rental total", formatMoney(quote.total)],
+        ["Refundable security deposit", formatMoney(quote.security_deposit)],
+        ["Recorded rental payments", formatMoney(paid)],
+        ["Rental balance", formatMoney(Number(quote.total) - paid)],
       ].map(([label, value]) => (
         <div key={label} className="flex justify-between gap-4">
           <dt className="text-muted-foreground">{label}</dt>
@@ -112,16 +109,16 @@ export default function Booking() {
     setValue,
     formState: { errors },
   } = methods;
-  const [pickup, expectedReturn, branch, vehicle, advance] = useWatch({
+  const [pickup, expectedReturn, vehicle, advance] = useWatch({
     control,
     name: [
       "pickup_at",
       "expected_return_at",
-      "pickup_branch_id",
       "vehicle_id",
       "advance_amount",
     ],
   });
+  const [amendId, setAmendId] = useState(null);
   const [open, setOpen] = useState(false);
   const [record, setRecord] = useState(null);
   const [options, setOptions] = useState(null);
@@ -137,6 +134,7 @@ export default function Booking() {
   const table = useRef(null);
   const listRequest = useRef(null);
   const formRequest = useRef(null);
+  const creationRequestId = useRef(null);
   const listStatus = useRef("");
   const readOnly = record && (record.status !== "Draft" || !can("bookings.edit"));
   const paid =
@@ -173,6 +171,7 @@ export default function Booking() {
   const openForm = useCallback(
     async (id = null) => {
       if (formRequest.current) return;
+      creationRequestId.current = id == null ? crypto.randomUUID() : null;
       const request = new AbortController();
       formRequest.current = request;
       reset({ ...EMPTY_FORM, extras: [] });
@@ -196,6 +195,7 @@ export default function Booking() {
         ]);
         if (request.signal.aborted) return;
         setOptions(settings.data.data);
+        if (!detail) reset({ ...EMPTY_FORM, extras: [] });
         if (detail) {
           const row = detail.data.data;
           setRecord(row);
@@ -256,17 +256,21 @@ export default function Booking() {
           title: "Total",
           field: "total",
           minWidth: 130,
-          formatter: (cell) => money.format(cell.getValue()),
+          formatter: (cell) => formatMoney(cell.getValue()),
         },
         {
           title: "Actions",
           field: "id",
           minWidth: 90,
           headerSort: false,
-          formatter: cell =>
-            tableAction(cell.getRow().getData().status === "Draft" ? "edit" : "view", cell.getRow().getData().status === "Draft" ? "Edit booking" : "Open booking", ""),
+          formatter: cell => {
+            const row = cell.getRow().getData();
+            return tableAction(row.status === "Draft" && can("bookings.edit") ? "edit" : "view", row.status === "Draft" && can("bookings.edit") ? "Edit booking" : "Open booking", "open") + (row.status === "Confirmed" && can("bookings.edit") ? tableAction("edit", "Amend booking dates", "amend") : "");
+          },
           cellClick: (event, cell) => {
-            if (event.target.closest("button")) void openForm(cell.getValue());
+            const button = event.target.closest("button");
+            if (button?.dataset.action === "amend") setAmendId(cell.getValue());
+            else if (button) void openForm(cell.getValue());
           },
         },
       ],
@@ -280,7 +284,7 @@ export default function Booking() {
       instance.destroy();
       table.current = null;
     };
-  }, [loadTable, openForm]);
+  }, [loadTable, openForm, can]);
 
   function showError(error) {
     const response = error.response?.data;
@@ -310,9 +314,11 @@ export default function Booking() {
     setFormError("");
     const payload = {
       ...values,
-      return_branch_id: values.pickup_branch_id,
+      ...(!record && creationRequestId.current ? { request_id: creationRequestId.current } : {}),
       extras: values.extras || [],
     };
+    delete payload.pickup_branch_id;
+    delete payload.return_branch_id;
     if (record) payload.upd_id = record.ID;
     try {
       const { data } = await axiosClient.post(
@@ -341,6 +347,7 @@ export default function Booking() {
 
   async function changeStatus(status) {
     if (formRequest.current || !record) return;
+    if (!window.confirm(`Change this booking to ${status}? Recorded payments will remain for finance review.`)) return;
     const request = new AbortController();
     formRequest.current = request;
     setBusy(true);
@@ -365,7 +372,7 @@ export default function Booking() {
   }
 
   useRecordLink(openForm);
-  const vehicleEndpoint = `/booking_vehicle_filter?${new URLSearchParams({ pickup_at: pickup || "", expected_return_at: expectedReturn || "", pickup_branch_id: branch || "" })}`;
+  const vehicleEndpoint = `/booking_vehicle_filter?${new URLSearchParams({ pickup_at: pickup && expectedReturn > pickup ? pickup : "", expected_return_at: pickup && expectedReturn > pickup ? expectedReturn : "", exclude_booking_id: record?.ID || "" })}`;
   const required = (label) => ({ required: `${label} is required.` });
   const amount = {
     pattern: {
@@ -381,6 +388,7 @@ export default function Booking() {
 
   return (
     <>
+      {amendId != null && <BookingDateAmendment bookingId={amendId} onClose={()=>setAmendId(null)} onSaved={message=>{setAmendId(null);setSuccess(message);void loadTable();}}/>}
       <PageHeader
         title="Bookings"
         sub_text="Plan a rental, confirm availability and record agreed pricing."
@@ -421,10 +429,10 @@ export default function Booking() {
             saving={busy}
             title={
               record
-                ? `Booking BKG-${String(record.ID).padStart(6, "0")}`
+                ? `Booking ${record.booking_code}`
                 : "Create Booking"
             }
-            description="One vehicle · same-branch pickup and return · times in Asia/Colombo"
+            description="One vehicle · times in Asia/Colombo"
             submitText={
               readOnly
                 ? "Close"
@@ -497,30 +505,6 @@ export default function Booking() {
                           Add Customer in a new tab
                         </a>
                       </Field>
-                      <Field
-                        name="pickup_branch_id"
-                        label="Pickup branch *"
-                        select
-                      >
-                        {readOnly ? (
-                          <Input
-                            id="pickup_branch_id"
-                            readOnly
-                            value={record.branch_label || ""}
-                          />
-                        ) : (
-                          <Select2
-                            name="pickup_branch_id"
-                            endpoint="/branch_filter"
-                            onValueChange={() => {
-                              setValue("vehicle_id", "");
-                              setValue("package_id", "");
-                            }}
-                            disabled={busy || !!readOnly}
-                            rules={required("Pickup branch")}
-                          />
-                        )}
-                      </Field>
                       {field(
                         "pickup_at",
                         "Pickup date and time *",
@@ -529,7 +513,7 @@ export default function Booking() {
                           type="datetime-local"
                           {...register(
                             "pickup_at",
-                            required("Pickup date and time"),
+                            { ...required("Pickup date and time"), deps: ["expected_return_at"] },
                           )}
                           onChange={(event) => {
                             register("pickup_at").onChange(event);
@@ -547,7 +531,7 @@ export default function Booking() {
                           {...register("expected_return_at", {
                             ...required("Expected return"),
                             validate: (value) =>
-                              value > pickup || "Return must be after pickup.",
+                              value > methods.getValues("pickup_at") || "Return must be after pickup.",
                           })}
                           onChange={(event) => {
                             register("expected_return_at").onChange(event);
@@ -556,15 +540,7 @@ export default function Booking() {
                           }}
                         />,
                       )}
-                      {field(
-                        "return_branch",
-                        "Return branch",
-                        <Input
-                          id="return_branch"
-                          value="Same as pickup branch"
-                          readOnly
-                        />,
-                      )}
+
                     </div>
                   </FormSection>
                   <FormSection title="Vehicle and rental terms">
@@ -584,23 +560,21 @@ export default function Booking() {
                           <Select2
                             name="vehicle_id"
                             endpoint={vehicleEndpoint}
+                            emptyMessage={!pickup || !expectedReturn ? "Choose pickup and return dates first." : expectedReturn <= pickup ? "Return must be after pickup." : "No vehicles are available for those dates. Try another period or check vehicle status."}
                             onValueChange={() => {
                               setValue("package_id", "");
                               setValue("agreed_rate", "");
                             }}
-                            disabled={
-                              busy ||
-                              !!readOnly ||
-                              !pickup ||
-                              !expectedReturn ||
-                              !branch
-                            }
+                            disabled={busy || !!readOnly}
                             rules={required("Vehicle")}
                           />
                         )}
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Choose dates and branch first. Availability is checked
-                          again on confirmation.
+                          {!pickup || !expectedReturn
+                            ? "Choose pickup and return dates to see available vehicles."
+                            : expectedReturn <= pickup
+                              ? "Return must be after pickup."
+                              : "Availability is checked again when you save or confirm."}
                         </p>
                       </Field>
                       <Field name="package_id" label="Rental package *" select>
@@ -659,7 +633,7 @@ export default function Booking() {
                               value={extra.code}
                               {...register("extras")}
                             />
-                            {extra.label} · {money.format(extra.amount)}
+                            {extra.label} · {formatMoney(extra.amount)}
                           </label>
                         ))
                       ) : (
@@ -811,6 +785,7 @@ export default function Booking() {
               </p>
             </div>
             <div id="booking-tb" className="relative p-6" aria-busy={loading}>
+              <div className="management-filter-row">
               <NativeSelect
                 aria-label="Booking status filter"
                 defaultValue=""
@@ -827,6 +802,7 @@ export default function Booking() {
                 ))}
               </NativeSelect>
               <TableSearch table={table} />
+              </div>
               <div
                 ref={tableElement}
                 className="overflow-hidden rounded-xl border border-border"

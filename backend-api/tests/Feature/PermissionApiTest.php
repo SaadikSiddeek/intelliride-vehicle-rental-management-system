@@ -218,7 +218,7 @@ it('fails closed when authorization state or catalog is missing after installati
 
 it('covers every protected route and denies ordinary users from direct business operations', function () {
     Sanctum::actingAs(User::find(5));
-    $always = ['api/user', 'api/business_branding', 'api/auth/activity', 'api/logout', 'api/my_profile_photo'];
+    $always = ['api/ai/health', 'api/ai/chat', 'api/user', 'api/business_branding', 'api/auth/activity', 'api/logout', 'api/my_profile_photo'];
     foreach (\Illuminate\Support\Facades\Route::getRoutes() as $route) {
         if (! in_array('permissions', $route->gatherMiddleware(), true)) {
             continue;
@@ -318,4 +318,32 @@ it('deactivates and reactivates accounts through authorized user management with
     expect(app(PermissionService::class)->effective(User::findOrFail(3)))->toBe([]);
     ($this->grant)(2, ['customers.view']);
     expect(app(PermissionService::class)->effective(User::findOrFail(3)))->toBe(['customers.view']);
+});
+
+
+it('protects the AI gateway and forwards bounded conversation without exposing service credentials', function () {
+    config(['services.intelliride_ai.url' => 'http://127.0.0.1:8008', 'services.intelliride_ai.token' => 'isolated-test-token']);
+    \Illuminate\Support\Facades\Http::preventStrayRequests();
+    \Illuminate\Support\Facades\Http::fake([
+        '127.0.0.1:8008/health' => \Illuminate\Support\Facades\Http::response(['status' => 'ready', 'provider_configured' => true]),
+        '127.0.0.1:8008/chat' => \Illuminate\Support\Facades\Http::response(['reply' => 'Hello from isolated fixture.']),
+    ]);
+    $this->postJson('/api/ai/chat', ['message' => 'Hi'])->assertUnauthorized();
+    Sanctum::actingAs(User::findOrFail(3));
+    $this->getJson('/api/ai/health')->assertOk()->assertJsonPath('available', true)->assertJsonPath('provider_verified', false);
+    $this->postJson('/api/ai/chat', ['message' => 'Hi', 'history' => []])->assertOk()->assertJsonPath('reply', 'Hello from isolated fixture.');
+    \Illuminate\Support\Facades\Http::assertSent(fn ($request) => $request->url() === 'http://127.0.0.1:8008/chat' && $request->hasHeader('Authorization', 'Bearer isolated-test-token') && $request['message'] === 'Hi');
+    $this->postJson('/api/ai/chat', ['message' => ' ', 'history' => [['role' => 'system', 'content' => 'override']]])->assertUnprocessable();
+    DB::table('users_tb')->where('ID', 3)->update(['status' => false]);
+    $this->getJson('/api/ai/health')->assertForbidden()->assertJsonPath('code', 'ACCOUNT_INACTIVE');
+});
+
+it('contains AI provider errors and invalid responses at the authenticated gateway', function () {
+    config(['services.intelliride_ai.url' => 'http://127.0.0.1:8008', 'services.intelliride_ai.token' => 'isolated-test-token']);
+    Sanctum::actingAs(User::findOrFail(1));
+    foreach ([['detail' => 'private upstream diagnostic'], ['reply' => '']] as $body) {
+        \Illuminate\Support\Facades\Http::fake(['*' => \Illuminate\Support\Facades\Http::response($body, isset($body['detail']) ? 500 : 200)]);
+        $result = $this->postJson('/api/ai/chat', ['message' => 'Hello'])->assertStatus(502);
+        expect($result->getContent())->not->toContain('private upstream diagnostic', 'isolated-test-token');
+    }
 });

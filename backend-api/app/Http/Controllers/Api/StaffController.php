@@ -142,19 +142,12 @@ class StaffController extends Controller
     public function getStaff(Request $request)
     {
         try {
-            $staff = DB::table('staff_tb')
-                ->orderByDesc('ID')
-                ->get([
-                    'ID',
-                    'emp_code',
-                    'first_name',
-                    'last_name',
-                    'email',
-                    'branch_id',
-                    'designation_id',
-                    'department_id',
-                    'status',
-                ]);
+            $staff = DB::table('staff_tb as s')
+                ->leftJoin('branch_tb as b', 'b.ID', '=', 's.branch_id')
+                ->leftJoin('designation_tb as d', 'd.ID', '=', 's.designation_id')
+                ->leftJoin('department_tb as t', 't.ID', '=', 's.department_id')
+                ->orderByDesc('s.ID')
+                ->get(['s.ID', 's.emp_code', 's.first_name', 's.last_name', 's.email', 's.branch_id', 's.designation_id', 's.department_id', 's.status', 'b.branch_name', 'd.designation_name', 't.department_name']);
 
             $data = $staff->map(function ($row) {
                 return [
@@ -168,6 +161,9 @@ class StaffController extends Controller
                     'branch' => $row->branch_id,
                     'designation' => $row->designation_id,
                     'department' => $row->department_id,
+                    'branch_name' => $row->branch_name,
+                    'designation_name' => $row->designation_name,
+                    'department_name' => $row->department_name,
                     'status' => (int) $row->status,
                 ];
             });

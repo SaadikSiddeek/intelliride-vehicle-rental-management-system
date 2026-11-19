@@ -45,7 +45,7 @@ class EnforcePermissions
 
     public function requirements(Request $r, string $uri): ?array
     {
-        if (in_array($uri, ['user', 'business_branding', 'auth/activity', 'auth/password', 'logout'], true)) {
+        if (in_array($uri, ['user', 'business_branding', 'auth/activity', 'auth/password', 'logout', 'ai/health', 'ai/chat'], true)) {
             return [];
         }
         if ($uri === 'my_profile_photo' && $r->isMethod('GET')) {
@@ -109,6 +109,12 @@ class EnforcePermissions
             }
             return $need;
         }
+        if ($uri === 'record_status') {
+            $name = $r->input('resource');
+            $resource = is_string($name) ? (\App\Http\Controllers\Api\RecordStatusController::RESOURCES[$name] ?? null) : null;
+            return $resource ? [$resource[1]] : [[]];
+        }
+        if ($uri === 'amend_booking_dates') return ['bookings.edit'];
         if ($uri === 'booking_status') {
             return [$r->input('status') === 'Confirmed' ? 'bookings.confirm' : 'bookings.cancel'];
         }

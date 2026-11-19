@@ -17,12 +17,12 @@ beforeEach(function () {
 
 function branchNamePayload(array $changes = []): array
 {
-    return array_replace(['branch_name' => 'Synthetic branch', 'branch_code' => 'SYNTHETIC-NAME', 'address' => 'Training address', 'contact_number' => '0000000000', 'manager_name' => 'Example Manager', 'status' => true], $changes);
+    return array_replace(['upd_id' => 1, 'branch_name' => 'Synthetic branch', 'branch_code' => 'SYNTHETIC-NAME', 'address' => 'Training address', 'contact_number' => '0000000000', 'manager_name' => 'Example Manager', 'status' => true], $changes);
 }
 
 it('creates lists hydrates and edits a branch manager name without requiring Staff', function () {
     expect(DB::table('staff_tb')->count())->toBe(0);
-    $id = $this->postJson('/api/save_branch', branchNamePayload())->assertCreated()->assertJsonPath('data.manager_name', 'Example Manager')->json('data.ID');
+    $id = $this->postJson('/api/save_branch', branchNamePayload())->assertOk()->assertJsonPath('data.manager_name', 'Example Manager')->json('data.ID');
     expect(DB::table('branch_tb')->where('ID', $id)->value('manager_id'))->toBeNull();
     $this->postJson('/api/fetch_branch_data', ['upd_id' => $id])->assertOk()->assertJsonPath('data.manager_name', 'Example Manager');
     $this->postJson('/api/get_branches')->assertOk()->assertJsonFragment(['manager_name' => 'Example Manager', 'manager' => 'Example Manager'])->assertJsonPath('managers', []);
@@ -35,8 +35,8 @@ it('creates lists hydrates and edits a branch manager name without requiring Sta
 it('validates optional names and duplicate codes without accepting malformed values', function () {
     $this->postJson('/api/save_branch', branchNamePayload(['manager_name' => str_repeat('x', 201)]))->assertUnprocessable()->assertJsonValidationErrors('manager_name');
     $this->postJson('/api/save_branch', branchNamePayload(['manager_name' => ['invalid']]))->assertUnprocessable()->assertJsonValidationErrors('manager_name');
-    $this->postJson('/api/save_branch', branchNamePayload(['manager_name' => null]))->assertCreated();
-    $this->postJson('/api/save_branch', branchNamePayload())->assertUnprocessable()->assertJsonValidationErrors('branch_code');
+    $this->postJson('/api/save_branch', branchNamePayload(['manager_name' => null]))->assertOk();
+    $this->postJson('/api/save_branch', array_diff_key(branchNamePayload(), ['upd_id' => true]))->assertStatus(409);
 });
 
 it('backfills only missing manager names and retains historical Staff associations', function () {

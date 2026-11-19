@@ -1,0 +1,113 @@
+{
+  "login": "/login",
+  "contact": "mailto:ahamedsaadik1@gmail.com",
+  "access": "/signup",
+  "purchase": "Email ahamedsaadik1@gmail.com to discuss IntelliRide, request a demonstration and agree on setup and package terms. Prices are confirmed with the team; this website has no online checkout.",
+  "plans": [
+    {
+      "name": "Essential",
+      "audience": "Core workflows for one rental office.",
+      "features": [
+        "Vehicles, customers and rental packages",
+        "Bookings, handover and reviewed returns",
+        "Invoices, payments and separate deposits",
+        "Reports and role-based access",
+        "In-system IntelliRide AI Chatbot"
+      ],
+      "action": "Ask about Essential"
+    },
+    {
+      "name": "Professional",
+      "recommended": true,
+      "audience": "Core rental workflows with conversational guidance.",
+      "features": [
+        "All Essential capabilities",
+        "In-system IntelliRide AI Chatbot",
+        "Conversation context and workflow guidance",
+        "Assistant setup confirmed with your package"
+      ],
+      "action": "Ask about Professional"
+    },
+    {
+      "name": "Premium",
+      "audience": "Professional with a planned agent workspace.",
+      "features": [
+        "All Professional capabilities",
+        "In-system IntelliRide AI Chatbot",
+        "AI Agent workspace — planned capability",
+        "No connected agent actions are currently available",
+        "Discuss agent requirements before purchase"
+      ],
+      "action": "Ask about Premium"
+    }
+  ],
+  "suggestions": [
+    "How do I log in?",
+    "How can I contact sales?",
+    "What do I get with IntelliRide?"
+  ],
+  "contactEmail": "ahamedsaadik1@gmail.com",
+  "faq": [
+    {
+      "question": "What is IntelliRide?",
+      "answer": "IntelliRide brings vehicle bookings, customers, rental handovers, returns and payments into one organized workspace for a vehicle rental business."
+    },
+    {
+      "question": "Can I check vehicle availability before booking?",
+      "answer": "Yes. Choose a pickup and return time to find eligible vehicles. Confirmed bookings reserve the vehicle; drafts do not. Availability is checked again when you confirm."
+    },
+    {
+      "question": "How do I track payments and outstanding balances?",
+      "answer": "Booking advances and later invoice payments are recorded against the rental. Finance shows the amount paid and the remaining balance. Refundable security deposits are tracked separately."
+    },
+    {
+      "question": "When will I receive an invoice?",
+      "answer": "The system issues an invoice when an authorized staff member finalizes the vehicle return. Staff can then print it or download its PDF."
+    },
+    {
+      "question": "Can employees have separate accounts?",
+      "answer": "Yes. Your administrator creates staff accounts and assigns the pages and actions each person may use."
+    },
+    {
+      "question": "Can I use IntelliRide on my phone?",
+      "answer": "The workspace adapts to smaller screens. Tables may scroll within their own area so you can still review detailed records."
+    },
+    {
+      "question": "Which package includes the AI Chatbot?",
+      "answer": "All three packages — Essential, Professional and Premium — include the AI Chatbot. Only Premium includes the AI Agent workspace, which remains a planned capability with no connected actions available today."
+    },
+    {
+      "question": "How do I get started or request a demonstration?",
+      "answer": "Email ahamedsaadik1@gmail.com. We can discuss your requirements, package scope and setup. Prices and service terms are confirmed before purchase."
+    },
+    {
+      "question": "How do I receive login access?",
+      "answer": "Your installation owner or organization administrator creates your account. Use those details on the Sign in page. The public website does not create an operational account automatically."
+    },
+    {
+      "question": "How is access to business information controlled?",
+      "answer": "Staff sign in with individual accounts, and permissions control supported pages and actions. Your installation must also be configured and maintained appropriately; we do not promise absolute security."
+    },
+    {
+      "question": "Can I use one installation for several branches?",
+      "answer": "Each installation is configured for one branch. Additional branches are set up as separate installations. Existing historical records are preserved during upgrades."
+    },
+    {
+      "question": "Are prices and onboarding assistance fixed?",
+      "answer": "Contact the team to discuss package prices, installation and onboarding requirements. There is no online checkout or published support agreement on this website."
+    },
+    {
+      "question": "How are refundable security deposits managed?",
+      "answer": "Deposits are received at handover and tracked separately from rental income. Any deduction needs approval. A refund requires a completed rental, a paid invoice and an authorized refund entry; money is not transferred automatically."
+    }
+  ],
+  "workflowFacts": [
+    "The real pages are Bookings, Active Rentals, Returns, Invoices, Payments, Deposit Refunds and Reports. Do not invent different ledger or screen names.",
+    "Draft bookings do not reserve vehicles. Confirmed bookings reserve an eligible vehicle for the agreed period. Booking advances are rental payments and are credited once.",
+    "Security deposits are received at vehicle handover and are tracked separately from rental revenue. They are not ordinary booking advance payments.",
+    "A confirmed booking becomes an Active rental only after authorized handover. Actual pickup cannot be in the future or more than 30 minutes before the reserved pickup.",
+    "Returns require assessment, review and authorized finalization. Finalization issues the invoice automatically, including agreed rental charges and approved additional charges, tax and discounts where applicable.",
+    "Later rental payments are recorded against an invoice. Deposit application requires approval and is tracked separately from rental cash collections.",
+    "Deposit refunds require a completed rental, a Paid invoice, an authorized refund entry and sufficient held deposit. Refunds are never automatic bank transfers. Vehicle release depends on inspection/release approval, not payment or refund alone."
+  ]
+}

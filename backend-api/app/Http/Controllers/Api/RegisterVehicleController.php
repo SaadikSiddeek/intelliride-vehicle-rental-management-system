@@ -881,7 +881,10 @@ class RegisterVehicleController extends Controller
     public function getVehicles(Request $request)
     {
 
-        $branchId = (int) $request->user()->branch_id;
+        $assignedBranch = (int) $request->user()->branch_id;
+        $branchService = app(\App\Services\InstallationBranch::class);
+        $branchId = (int) $branchService->current()->ID;
+        $readableBranches = $branchService->readableIds($assignedBranch);
 
         if ($branchId < 1) {
             return response()->json([
@@ -917,10 +920,11 @@ class RegisterVehicleController extends Controller
                     '=',
                     'fuel.ID'
                 )
-                ->where('vehicle.branch_id', $branchId)
+                ->whereIn('vehicle.branch_id', $readableBranches)
                 ->orderByDesc('vehicle.ID')
                 ->get([
                     'vehicle.ID as id',
+                    'vehicle.branch_id',
                     'vehicle.vehicle_number as number_plate',
                     'brand.brand_name as brand',
                     'model.model_name as model',
@@ -930,6 +934,10 @@ class RegisterVehicleController extends Controller
                     'vehicle.status',
                 ]);
 
+            foreach ($vehicles as $row) {
+                $row->is_historical_branch = (int) $row->branch_id !== $branchId;
+                $row->record_scope = $row->is_historical_branch ? 'Historical (read-only)' : 'Installation';
+            }
             return response()->json([
                 'status' => true,
                 'data' => $vehicles,
@@ -951,6 +959,8 @@ class RegisterVehicleController extends Controller
                             'brand_id',
                             'model_name',
                             'manufacture_year',
+                            'fuel_type_id',
+                            'transmission_type_id',
                         ]),
 
                     'fuels' => DB::table('fuel_type_tb')
@@ -978,7 +988,10 @@ class RegisterVehicleController extends Controller
     public function fetchVehicleData(Request $request)
     {
 
-        $branchId = (int) $request->user()->branch_id;
+        $assignedBranch = (int) $request->user()->branch_id;
+        $branchService = app(\App\Services\InstallationBranch::class);
+        $branchId = (int) $branchService->current()->ID;
+        $readableBranches = $branchService->readableIds($assignedBranch);
 
         if ($branchId < 1) {
             return response()->json([
@@ -1002,7 +1015,7 @@ class RegisterVehicleController extends Controller
             }
 
             $vehicle = DB::table(self::TABLE)
-                ->where('branch_id', $branchId)
+                ->whereIn('branch_id', $readableBranches)
                 ->where('ID', $validator->validated()['upd_id'])
                 ->first();
 
@@ -1013,7 +1026,7 @@ class RegisterVehicleController extends Controller
                 ], 404);
             }
 
-            $data = ['ID' => $vehicle->ID];
+            $data = ['ID' => $vehicle->ID, 'is_historical_branch' => (int) $vehicle->branch_id !== $branchId];
 
             foreach (self::FIELD_MAP as $formField => $databaseField) {
                 $data[$formField] = $vehicle->{$databaseField};

@@ -73,9 +73,11 @@ test('dashboard availability respects current calendar blocks and completed rese
 });
 test('dashboard validates scope dates and operation permissions', function () {
     $this->postJson('/api/dashboard_overview', ['from' => '2025-01-01', 'to' => '2026-12-02'])->assertUnprocessable();
-    $this->postJson('/api/dashboard_overview', ['branch_id' => 999])->assertUnprocessable();
+    $this->postJson('/api/dashboard_overview', ['branch_id' => 999])->assertOk(); // Client branch filters are ignored for single-installation dashboard.
+    (require database_path('migrations/2026_11_18_120000_create_installation_settings.php'))->up();
+    DB::table('installation_settings_tb')->where('ID', 1)->update(['branch_id' => 1]);
     DB::table('branch_tb')->insert(['ID' => 2, 'branch_name' => 'Other', 'branch_code' => 'OTHER']);
-    $this->postJson('/api/dashboard_overview', ['branch_id' => 2])->assertOk()->assertJsonPath('data.current.fleet_total', 0)->assertJsonPath('data.period.Deposit Received', '0.00');
+    $this->postJson('/api/dashboard_overview', ['branch_id' => 2])->assertOk()->assertJsonPath('data.current.fleet_total', 1);
     config(['customer_access.users' => []]);
     $this->postJson('/api/dashboard_overview')->assertForbidden();
 });
