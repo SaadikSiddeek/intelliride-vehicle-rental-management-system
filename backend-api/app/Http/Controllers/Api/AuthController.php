@@ -51,7 +51,8 @@ class AuthController extends Controller
         $fields = $request->validate([
             'current_password' => ['required', 'string', 'max:1024'],
             'password' => ['required', 'string', 'min:12', 'confirmed', 'different:current_password', new \App\Rules\InstallationPassword],
-            'user_id' => ['prohibited'], 'user_type' => ['prohibited'],
+            'user_id' => ['prohibited'],
+            'user_type' => ['prohibited'],
         ]);
         return \Illuminate\Support\Facades\DB::transaction(function () use ($request, $fields) {
             $user = User::where('ID', $request->user()->ID)->lockForUpdate()->firstOrFail();
@@ -63,7 +64,7 @@ class AuthController extends Controller
             // Keep this authenticated session; invalidate any other installation sessions.
             $current = $request->user()->currentAccessToken();
             $currentId = $current instanceof \Laravel\Sanctum\PersonalAccessToken ? $current->getKey() : null;
-            $user->tokens()->when($currentId, fn ($q, $id) => $q->where('id', '!=', $id))->delete();
+            $user->tokens()->when($currentId, fn($q, $id) => $q->where('id', '!=', $id))->delete();
             app(\App\Services\PermissionService::class)->audit($user->ID, $user->ID, 'installation_password_changed', 'Owner completed required first-login password change', ['must_change_password' => true], ['must_change_password' => false]);
             return response()->json(['message' => 'Installation password changed.', 'user' => $user->fresh()]);
         });
